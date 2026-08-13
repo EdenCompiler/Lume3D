@@ -5,10 +5,16 @@
 - CMake 3.20 or newer;
 - C11 compiler;
 - Git;
-- Python 3;
+- Python 3 with Jinja2;
 - OpenGL development support and the native dependencies required by GLFW.
 
 GLFW 3.5.1, GLAD 2.0.8, and stb_image are pinned through CMake `FetchContent`. Normal rebuilds reuse the populated build tree.
+
+Install the GLAD generator requirement before configuring:
+
+    python -m pip install -r requirements-build.txt
+
+CMake checks this requirement during configuration and prints an English installation command when it is missing.
 
 ## Linux
 

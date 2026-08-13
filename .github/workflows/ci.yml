@@ -13,6 +13,8 @@ jobs:
         compiler: [gcc, clang]
     steps:
       - uses: actions/checkout@v5
+      - name: Install Python build requirements
+        run: python -m pip install -r requirements-build.txt
       - name: Install native dependencies
         run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev xorg-dev xvfb
       - name: Configure
@@ -29,6 +31,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Install Python build requirements
+        run: python -m pip install -r requirements-build.txt
       - name: Configure
         run: cmake -S . -B build -A x64 -DLUME_WARNINGS_AS_ERRORS=ON
       - name: Build

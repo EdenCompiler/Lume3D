@@ -45,7 +45,11 @@ The public API is intentionally English and uses opaque handles such as `LumeApp
 
 ## Installation
 
-Lume3D requires CMake 3.20 or newer, a C11 compiler, Python 3 for GLAD generation, Git for pinned dependency retrieval, and development packages required by GLFW on the host platform. CMake retrieves the pinned GLFW, GLAD, and stb_image sources automatically.
+Lume3D requires CMake 3.20 or newer, a C11 compiler, Python 3 with Jinja2 for GLAD generation, Git for pinned dependency retrieval, and development packages required by GLFW on the host platform. CMake retrieves the pinned GLFW, GLAD, and stb_image sources automatically.
+
+Install the Python build requirement:
+
+    python -m pip install -r requirements-build.txt
 
 Build the library, examples, and tests:
 
@@ -215,7 +219,11 @@ A API pública usa inglês deliberadamente e expõe handles opacos como `LumeApp
 
 ## Instalação
 
-Lume3D requer CMake 3.20 ou mais recente, compilador C11, Python 3 para gerar o GLAD, Git para obter dependências fixadas e os pacotes de desenvolvimento exigidos pelo GLFW na plataforma. O CMake obtém automaticamente GLFW, GLAD e stb_image.
+Lume3D requer CMake 3.20 ou mais recente, compilador C11, Python 3 com Jinja2 para gerar o GLAD, Git para obter dependências fixadas e os pacotes de desenvolvimento exigidos pelo GLFW na plataforma. O CMake obtém automaticamente GLFW, GLAD e stb_image.
+
+Instale o requisito Python de build:
+
+    python -m pip install -r requirements-build.txt
 
 Compile a biblioteca, os exemplos e os testes:
 

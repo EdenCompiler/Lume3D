@@ -10,6 +10,20 @@ include(FetchContent)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+find_package(Python 3 COMPONENTS Interpreter REQUIRED)
+execute_process(
+    COMMAND ${Python_EXECUTABLE} -c "import jinja2"
+    RESULT_VARIABLE LUME_JINJA2_STATUS
+    OUTPUT_QUIET
+    ERROR_QUIET
+)
+if(NOT LUME_JINJA2_STATUS EQUAL 0)
+    message(FATAL_ERROR
+        "The GLAD generator requires Jinja2. Install the build requirements with: "
+        "${Python_EXECUTABLE} -m pip install -r ${CMAKE_CURRENT_SOURCE_DIR}/requirements-build.txt"
+    )
+endif()
+
 option(LUME_BUILD_EXAMPLES "Build the Lume3D examples" ON)
 option(LUME_BUILD_TESTS "Build the Lume3D tests" ON)
 option(LUME_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
