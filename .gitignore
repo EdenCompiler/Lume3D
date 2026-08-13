@@ -1,0 +1,15 @@
+/build*/
+/install/
+/consumer-build/
+.cache/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dll
+*.dylib
+*.exe
+.idea/
+.vscode/
