@@ -94,3 +94,5 @@ The package installs its pinned GLFW and GLAD targets and headers with Lume3D so
 ## Tests
 
 `lume_unit_tests` validates vectors, matrix composition/inversion, and hierarchical world transforms without a window. `lume_render_test` creates a hidden context, validates primitive topology, renders a lit box, and reads a non-empty pixel.
+
+GitHub-hosted Windows runners do not expose an OpenGL driver, so Windows CI compiles every target with MSVC and runs the device-free unit test. The complete OpenGL suite runs under Xvfb with both GCC and Clang. On a Windows machine with a graphics driver, the normal unfiltered `ctest` command runs all five tests.

@@ -39,5 +39,5 @@ jobs:
           cmake -S . -B build -A x64 -DLUME_WARNINGS_AS_ERRORS=ON "-DPython_EXECUTABLE=$python"
       - name: Build
         run: cmake --build build --config Debug --parallel
-      - name: Test
-        run: ctest --test-dir build -C Debug --output-on-failure
+      - name: Test device-free suite
+        run: ctest --test-dir build -C Debug -R lume_unit_tests --output-on-failure

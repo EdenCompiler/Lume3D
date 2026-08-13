@@ -94,3 +94,5 @@ O pacote instala seus targets e headers GLFW e GLAD fixados junto ao Lume3D, for
 ## Testes
 
 `lume_unit_tests` valida vetores, composição/inversão de matrizes e transformações mundiais hierárquicas sem janela. `lume_render_test` cria contexto oculto, valida topologia das primitivas, renderiza caixa iluminada e lê um pixel não vazio.
+
+Runners Windows hospedados pelo GitHub não expõem driver OpenGL; por isso, o CI Windows compila todos os targets com MSVC e executa o teste unitário sem dispositivo. A suíte OpenGL completa roda sob Xvfb com GCC e Clang. Em uma máquina Windows com driver gráfico, o comando `ctest` normal e sem filtro executa os cinco testes.
