@@ -1,44 +1,50 @@
-# Lume3D Example Guide
+# Lume3D practical examples
 
-Build examples with the default configuration:
+Lume3D 1.5 ships two focused examples. Both are complete animated scenes built only with the public API and custom GLSL shaders; neither depends on downloaded art assets.
+
+Build and run them:
 
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build --parallel
 
-Press Escape to close any example.
+    ./build/lume_example_ocean
+    ./build/lume_example_black_hole
 
-Pass `--smoke` to hide the window, disable VSync, render two frames, and exit. This is the mode used by the test suite.
+Press Escape to close. Pass `--smoke` to create a hidden window, render two frames, and exit; CTest runs this mode for both examples.
 
-## Available examples
+## Shader ocean
 
-| Target | Source | Demonstrates |
-| --- | --- | --- |
-| `lume_example_cube` | `examples/cubo.c` | Minimal app/scene/camera flow, basic material, and frame-rate-independent rotation |
-| `lume_example_solar_system` | `examples/sistema_solar.c` | Empty pivot nodes, nested parent/child transforms, shared geometry, and multiple materials |
-| `lume_example_lighting` | `examples/iluminacao.c` | Procedural RGBA texture, Lambert material, ambient/directional/point lights, and look-at camera |
+Source: `examples/oceano.c`
 
-Run from the build directory on Linux:
+The ocean is a dense continuous surface displaced by four directional Gerstner wave trains. The vertex shader changes all three position components, calculates a smooth finite-difference normal, and carries crest energy to the fragment shader. The fragment shader combines Fresnel reflection, sun glitter, depth color, multi-scale noise, and narrow breaking-foam bands. A separate fullscreen procedural sky supplies the low cloudy horizon.
 
-    ./build/lume_example_cube
-    ./build/lume_example_solar_system
-    ./build/lume_example_lighting
+The camera follows the reference’s near-surface, wide-world framing. Use W/A/S/D to travel across the surface while retaining that camera style.
 
-    ./build/lume_example_cube --smoke
+This example is useful as a template for:
 
-Multi-config generators place executables under a configuration subdirectory such as `build/Release`.
+- animated vertex displacement;
+- finite-difference shader normals;
+- multiple custom materials and shared frame uniforms;
+- large procedural surfaces and low-horizon composition.
 
-## Spinning cube walkthrough
+## Spinning Kerr black hole
 
-The cube example follows the smallest useful lifecycle. It creates the application first because scenes and resources belong to it. It then creates a scene, default perspective camera, box geometry, basic material, and mesh node.
+Source: `examples/buraco_negro.c`
 
-The camera moves to +Z and keeps its default local −Z direction. Each frame polls events, rotates the cube using elapsed seconds, renders, and swaps buffers. Every failure path prints `lume_get_last_error()` in English and releases the application.
+The black-hole fragment shader is a compact numerical relativity demonstration, not a screen-space swirl. In geometric units (`G = c = 1`) it uses a reduced Kerr ray-plane integrator with spin `a = 0.82M`. The radial motion uses the separated Kerr potential:
 
-## Scene hierarchy walkthrough
+```text
+Δ = r² − 2Mr + a²
+R(r) = [r² + a² − aξ]² − Δ[η + (ξ − a)²]
+```
 
-The solar-system example shares one sphere geometry between three meshes. Empty nodes act as orbit pivots. Rotating the Earth pivot moves both Earth and the Moon pivot, while the Moon pivot provides its independent orbit.
+It derives the outer event horizon as `r₊ = M + √(M² − a²)`, uses the prograde Kerr ISCO `r ≈ 2.8019M`, and evaluates the physical ZAMO frame-dragging rate while reconstructing each ray in a continuous 3D orbital plane. Rays either cross the horizon or escape to the star field. Bent rays intersect a thin disk; emission uses the Kerr circular-orbit angular velocity, gravitational/Doppler redshift, radial temperature, and invariant-intensity `g³` factor.
 
-This example uses basic materials so object colors are visible without lights and the transform relationship remains the focus.
+This reduced solver preserves the principal Kerr spin effects and continuous primary/secondary disk images, but it is not a full adaptive integration of both Carter radial and polar equations. It does not model magnetohydrodynamic turbulence or volumetric radiative transfer.
 
-## Lighting walkthrough
+This example is useful as a template for:
 
-The lighting example creates a 2×2 checker texture directly from RGBA bytes. A Lambert material combines it with ambient, directional, and warm point lighting. The point light's node position controls its world-space source.
+- fullscreen custom shaders;
+- numerically integrated simulations in GLSL;
+- physically meaningful constants and stopping conditions;
+- resize-aware shader uniforms.

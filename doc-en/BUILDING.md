@@ -8,7 +8,7 @@
 - Python 3 with Jinja2;
 - OpenGL development support and the native dependencies required by GLFW.
 
-GLFW 3.5.1, GLAD 2.0.8, and stb_image are pinned through CMake `FetchContent`. Normal rebuilds reuse the populated build tree.
+GLFW, GLAD, stb_image, cgltf, fast_obj, and tinycthread are pinned to exact upstream commits through CMake `FetchContent`. Normal rebuilds reuse the populated build tree.
 
 Install the GLAD generator requirement before configuring:
 
@@ -79,7 +79,7 @@ A consumer `CMakeLists.txt` can then use:
 cmake_minimum_required(VERSION 3.20)
 project(example LANGUAGES C)
 
-find_package(Lume3D 1 CONFIG REQUIRED)
+find_package(Lume3D 1.5 CONFIG REQUIRED)
 add_executable(example main.c)
 target_link_libraries(example PRIVATE Lume3D::lume3d)
 ```
@@ -93,6 +93,6 @@ The package installs its pinned GLFW and GLAD targets and headers with Lume3D so
 
 ## Tests
 
-`lume_unit_tests` validates vectors, matrix composition/inversion, and hierarchical world transforms without a window. `lume_render_test` creates a hidden context, validates primitive topology, renders a lit box, and reads a non-empty pixel.
+`lume_unit_tests` validates math, transforms, diagnostics, and device-free asset parsing. `lume_render_test` creates a hidden context and exercises geometry, materials, model loading, custom HDR/LDR passes, shadows, and pixel readback. The ocean and black-hole targets each have a two-frame hidden smoke test.
 
-GitHub-hosted Windows runners do not expose an OpenGL driver, so Windows CI compiles every target with MSVC and runs the device-free unit test. The complete OpenGL suite runs under Xvfb with both GCC and Clang. On a Windows machine with a graphics driver, the normal unfiltered `ctest` command runs all five tests.
+GitHub-hosted Windows runners do not expose an OpenGL driver, so Windows CI compiles every target with MSVC and runs the device-free unit test. MinGW is cross-compiled separately. The complete four-test OpenGL suite runs under Xvfb with GCC and Clang. On a Windows machine with a graphics driver, unfiltered `ctest` runs all four tests.

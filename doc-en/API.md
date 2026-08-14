@@ -1,76 +1,72 @@
-# Lume3D 1.0 API Guide
+# Lume3D 1.5 API guide
 
-Lume3D exposes one public C11 header:
+The umbrella header exposes every module:
 
 ```c
 #include <lume/lume.h>
 ```
 
-Every public symbol starts with `lume_` or `Lume`. Handles are opaque; applications use functions instead of accessing internal fields.
+Applications may instead include `core.h`, `math.h`, `scene.h`, `render.h`, `assets.h`, `animation.h`, or `debug.h`. Every public name is English and begins with `lume_`, `Lume`, or `LUME_`. Implementation names and source comments are Brazilian Portuguese; runtime, compiler-facing, test, and example output is English.
 
-## Application and diagnostics
+## Results and diagnostics
 
-`lume_app_create` creates the GLFW window, OpenGL 3.3 Core context, input state, clock, renderer, and resource owner. Passing `NULL` selects `lume_app_config_default()`.
+Fallible calls return `LumeResult` and write their output through the final `out_...` parameter:
 
-The default configuration creates a visible, resizable 1280×720 window with VSync. Use `visible = false` for automated rendering tests.
+```c
+LumeApp *app = NULL;
+LumeResult result = lume_app_create(NULL, &app);
+if (result != LUME_SUCCESS) {
+    const LumeError *error = lume_error_last();
+    fprintf(stderr, "%s: %s\n", lume_result_string(result), error->message);
+    return 1;
+}
+```
 
-Creation functions return `NULL` on failure. Boolean operations return `false`. `lume_get_last_error()` returns the latest process-global English diagnostic. Set `log_callback` to receive initialization messages and non-fatal warnings without standard output.
+`LumeError` contains a result code, operation, optional path, line/column, and an English message. The last error is thread-local. A per-application log callback receives English info, warning, and error messages.
 
-Each frame follows this order:
+## Application and frames
 
-1. `lume_app_begin_frame` snapshots input, polls events, and returns elapsed seconds.
-2. Update application and scene state.
-3. `lume_render` clears and renders a scene.
+`lume_app_create` creates the window, OpenGL context, input state, asset services, and renderer. Start from `lume_app_config_default`; the default is a visible, resizable 1280×720 window with VSync.
+
+Each frame has one clear order:
+
+1. `lume_app_begin_frame` polls events and returns elapsed seconds.
+2. Update scene, animation, and application state.
+3. `lume_app_render` renders the scene with a camera.
 4. `lume_app_end_frame` presents the back buffer.
 
-## Input
+Use `lume_renderer_render` when rendering to a `LumeRenderTarget`. Input queries expose down, pressed, and released state for keyboard and mouse buttons.
 
-Keyboard and mouse queries provide `is_down`, `was_pressed`, and `was_released` variants. Transitions are valid after `lume_app_begin_frame`.
+## Scene and transforms
 
-`lume_mouse_position` uses window coordinates. `lume_mouse_delta` reports change since the preceding frame. `lume_mouse_scroll` reports accumulated wheel movement for the current frame.
+A scene owns its nodes. Empty nodes, cameras, lights, meshes, and instanced meshes all use the opaque `LumeNode` handle. Nodes have a name, position, quaternion rotation, scale, parent, and children. World matrices and bounds are updated lazily.
 
-## Scenes and nodes
+```c
+LumeNode *pivot = NULL;
+LumeNode *mesh = NULL;
+lume_node_create(scene, &pivot);
+lume_mesh_create(scene, geometry, material, &mesh);
+lume_node_add_child(pivot, mesh);
+lume_node_set_position(mesh, (LumeVec3){3, 0, 0});
+lume_node_rotate_y(pivot, delta_seconds);
+```
 
-`lume_scene_create` registers a scene with its application. `lume_node_create` adds an empty transform node. Cameras, meshes, and lights are specialized nodes and can participate in the same hierarchy.
+The coordinate system is right-handed, +Y is up, cameras look along local −Z, angles are radians, and matrices are column-major.
 
-Transforms contain position, Euler XYZ rotation in radians, and scale. `lume_node_add_child` rejects cross-scene relationships and cycles. Reparenting automatically detaches the child from its previous parent. `lume_node_look_at` takes a world-space target.
+## Cameras, lights, and queries
 
-`lume_node_destroy` destroys the selected node and all descendants. `lume_scene_destroy` destroys every remaining node. `lume_app_destroy` safely destroys all remaining scenes.
+Perspective and orthographic cameras use configuration structs with default constructors. A zero perspective aspect uses the framebuffer ratio. Lights include ambient, directional, point, and spot. Directional and spot configurations can enable shadow casting.
 
-## Cameras
+`lume_scene_raycast` tests visible mesh world AABBs and returns nearest-first `LumeRaycastHit` values. The math module includes vectors, quaternions, matrices, inverse/transform operations, rays, AABBs, frusta, and intersection tests.
 
-`lume_camera_create_perspective` accepts field of view in radians, aspect ratio, and clipping planes. The default aspect ratio is zero, meaning the projection follows the current framebuffer. Set a positive ratio for a fixed projection; pass zero to `lume_camera_set_aspect_ratio` to restore automatic sizing.
+## Resources
 
-`lume_camera_create_orthographic` accepts explicit left, right, bottom, top, near, and far planes.
+Geometry, textures, materials, shaders, pipelines, render targets, environments, models, and asset jobs are reference counted. Creation returns one reference. `retain` adds ownership and `release` removes it. Scene mesh nodes retain their geometry and material. The application reports leaked resource handles in English during destruction.
 
-The coordinate system is right-handed, +Y is up, and cameras look along local −Z.
+Built-in geometry includes box, plane, and UV sphere. Custom geometry supports positions, normals, UVs, tangents, colors, joint indices/weights, and optional 32-bit indices. Materials include unlit, Phong, PBR, and custom-pipeline variants.
 
-## Geometry
+See [Rendering](RENDERING.md), [Assets](ASSETS.md), and [Animation](ANIMATION.md) for subsystem workflows.
 
-Built-in constructors create a centered box, an XY plane facing +Z, and a UV sphere. Dimensions and radius must be positive. Sphere segment counts must be at least 3×2.
+## Lifetime order
 
-`lume_geometry_create_custom` copies all supplied arrays. Positions contain three floats per vertex. Normals are optional and generated by accumulating indexed triangle face normals. Texture coordinates are optional and contain two floats per vertex. Indices are optional; without them each sequential group of three vertices forms a triangle. All indices are validated.
-
-Geometry is uploaded lazily on first render and can be shared by multiple meshes.
-
-## Textures and materials
-
-`lume_texture_create` copies RGBA8 pixels into an OpenGL texture. `lume_texture_load` supports stb_image formats and expands them to RGBA8. Default settings use linear filtering, repeat wrapping, mipmaps, and vertical file-image flipping.
-
-`lume_material_create_basic` combines color and an optional texture without scene lighting. `lume_material_create_lambert` applies diffuse ambient, directional, and point lighting. Both materials support wireframe mode at creation time.
-
-Materials and textures must belong to the same application. `lume_material_set_color` and `lume_material_set_texture` update reusable material state.
-
-## Lights and rendering
-
-Ambient light contributes a constant color. Directional light uses a configurable local direction transformed by its node. Point light uses its node's world position and a finite range with smooth quadratic falloff.
-
-Ambient contributions accumulate without a fixed count. The shader accepts four directional and four point lights. Additional lights are ignored and produce an English warning.
-
-`lume_render` validates application/scene/camera ownership, updates world matrices, updates the viewport, clears color and depth, uploads light state, and draws every mesh. It returns `false` for invalid ownership, invalid camera transforms, or renderer failure.
-
-## Resource ownership
-
-Scenes own nodes. Applications own scenes, geometry, materials, textures, the window, and OpenGL objects. Resource handles remain valid until `lume_app_destroy`; individual resource destruction is deliberately absent from 1.0 to keep sharing rules predictable.
-
-Do not use a handle with another application. Do not use nodes after destroying their scene or ancestor. All API calls that touch the window or GPU belong on the application thread.
+Destroy animation players before model instances, instances before their scene, scenes before the application, and release application-owned resource handles before `lume_app_destroy`. Passing `NULL` to destroy/release calls is safe unless a function documents otherwise.

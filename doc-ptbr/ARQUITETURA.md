@@ -1,42 +1,42 @@
 # Arquitetura do Lume3D
 
-## Objetivo
+## Objetivo e módulos
 
-Lume3D é um renderizador de cenas acessível, não uma engine completa de jogos. A API pública favorece chamadas curtas de criação e configuração, enquanto a implementação C mantém ownership explícito e uma fronteira OpenGL pequena.
+Lume3D é um renderizador nativo de cenas legível para C11. Ele oferece um vocabulário de objetos semelhante ao Three.js, mantendo alocação, ownership, threads e falhas explícitos.
 
-## Organização dos módulos
+A API é modular: `core`, `math`, `scene`, `render`, `assets`, `animation` e `debug`, com `lume.h` como agregador. Contratos privados ficam em `src/lume_interno.h`; identificadores e comentários internos usam português brasileiro. GLFW fornece janelas, GLAD as declarações OpenGL 3.3, stb_image decodifica imagens, cgltf analisa glTF, fast_obj analisa OBJ e tinycthread oferece primitivas portáveis de workers. Revisões são fixadas pelo CMake.
 
-A superfície pública fica em `include/lume/lume.h`. A implementação divide-se em aplicativo/input, matemática, grafo de cena, geometria, recursos e renderizador. Tipos e contratos privados compartilhados ficam em `src/lume_interno.h`.
-
-GLFW cuida da integração nativa de janela. GLAD fornece declarações OpenGL 3.3 geradas. stb_image decodifica imagens. Vetores, matrizes, transformações, cenas e geometrias são código próprio do Lume3D.
-
-## Fluxo de dados do frame
+## Fluxo de dados
 
 ```text
-processar input → atualizar nós → atualizar matrizes mundiais → coletar luzes
-                 → configurar câmera → configurar malha/material → desenhar → apresentar
+input/eventos ──→ update do aplicativo ──→ animação/transformações
+                                                │
+job de modelo ──→ parsing CPU ──→ upload/cache na thread de renderização
+                                                │
+cena ──→ culling ──→ mapas de sombra ──→ forward HDR ──→ passes HDR custom
+                                                    ──→ bloom/ACES/FXAA
+                                                    ──→ passes LDR custom ──→ apresentar
 ```
 
-Dados de geometria na CPU são copiados na criação e enviados a VAO/VBO/EBO no primeiro uso. Materiais referenciam texturas compartilhadas. Cada render percorre o registro plano de nós da cena; transformações hierárquicas são atualizadas recursivamente pelas raízes.
+O contexto OpenGL e toda criação/finalização na GPU pertencem à thread do aplicativo. Jobs assíncronos apenas analisam e preparam dados na CPU. O renderizador percorre um registro plano da cena e resolve transformações de pais recursivamente.
 
-## Convenções de coordenadas e matrizes
+## Coordenadas e visibilidade
 
-Lume3D usa coordenadas destras, +Y para cima e −Z local como frente da câmera. Matrizes são column-major para OpenGL. A composição é translação × rotação Z × rotação Y × rotação X × escala. Rotações Euler públicas usam radianos.
+Lume3D é destro, +Y para cima, frente da câmera em −Z, radianos e matrizes column-major. A composição é translação × rotação × escala. Aspect zero usa a proporção atual do framebuffer.
 
-A matriz de visão é a inversa da transformação mundial da câmera. A projeção perspectiva usa profundidade de clip OpenGL −1..1. Proporção perspectiva zero seleciona a proporção do framebuffer a cada frame.
+Geometrias guardam AABBs locais. Nós derivam AABBs mundiais das matrizes. O renderizador extrai o frustum, descarta meshes sem interseção quando culling está ativo e envia objetos opacos/masked antes dos blended. Raycasts reutilizam os bounds mundiais.
 
 ## Ownership
 
-O aplicativo possui estado do renderizador e todos os recursos registrados. Uma cena pertence a exatamente um aplicativo e possui todo nó criado por ela. Um nó pode ter um pai e vários filhos na mesma cena.
+`LumeApp` possui janela, renderizador, cache, jobs e o registro de diagnóstico de vazamentos. `LumeScene` possui seus nós. Recursos de GPU e modelos imutáveis usam contagem de referências, permitindo compartilhar geometria/material/textura.
 
-Destruir um nó destrói recursivamente os descendentes. Destruir uma cena destrói seus nós. Destruir o aplicativo destrói primeiro cenas, depois recursos de GPU, renderizador e janela.
+```text
+aplicativo → cena → nós
+registro do aplicativo → recursos com contagem de referências
+nó mesh → geometria + material → texturas/pipeline custom → shader
+instância → nós da cena; modelo → dados/clips importados imutáveis
+```
 
-## Fronteira do renderizador
+## Limites de renderização
 
-Chamadas OpenGL diretas ficam restritas à inicialização/destruição do aplicativo, upload de geometria, upload de textura e renderização. Isso mantém cena e matemática testáveis de forma independente e prepara um futuro backend sem alterar ownership da cena.
-
-O shader 1.0 implementa transformações, composição de textura/cor, materiais basic sem luz e iluminação difusa Lambert. Transparência, sombras, pipelines personalizados e filas de render estão fora desta fronteira.
-
-## Convenção de idioma
-
-Símbolos públicos, diagnósticos de runtime, identificadores de shader, targets de build, saída de testes e exemplos voltados ao usuário usam inglês. Identificadores C privados e comentários do fonte usam português do Brasil. A documentação é espelhada nos dois idiomas.
+A versão 1.5 tem um backend OpenGL 3.3 Core e renderizador forward. Sombras direcionais usam três cascatas práticas e sombras spot aceitam quatro luzes. Passes custom de tela inteira usam uma cadeia ping-pong. A configuração de amostras MSAA e o tempo de GPU são campos públicos preparados para evolução; esta versão não resolve targets multisample nem emite timer queries. Streams de skin e morph são importados, mas a deformação permanece experimental.

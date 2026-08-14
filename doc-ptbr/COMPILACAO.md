@@ -8,7 +8,7 @@
 - Python 3 com Jinja2;
 - suporte de desenvolvimento OpenGL e dependências nativas exigidas pelo GLFW.
 
-GLFW 3.5.1, GLAD 2.0.8 e stb_image são fixados via CMake `FetchContent`. Rebuilds normais reutilizam a árvore de build preenchida.
+GLFW, GLAD, stb_image, cgltf, fast_obj e tinycthread são fixados em commits upstream exatos via CMake `FetchContent`. Rebuilds normais reutilizam a árvore de build preenchida.
 
 Instale o requisito do gerador GLAD antes de configurar:
 
@@ -79,7 +79,7 @@ Um `CMakeLists.txt` consumidor pode usar:
 cmake_minimum_required(VERSION 3.20)
 project(exemplo LANGUAGES C)
 
-find_package(Lume3D 1 CONFIG REQUIRED)
+find_package(Lume3D 1.5 CONFIG REQUIRED)
 add_executable(exemplo main.c)
 target_link_libraries(exemplo PRIVATE Lume3D::lume3d)
 ```
@@ -93,6 +93,6 @@ O pacote instala seus targets e headers GLFW e GLAD fixados junto ao Lume3D, for
 
 ## Testes
 
-`lume_unit_tests` valida vetores, composição/inversão de matrizes e transformações mundiais hierárquicas sem janela. `lume_render_test` cria contexto oculto, valida topologia das primitivas, renderiza caixa iluminada e lê um pixel não vazio.
+`lume_unit_tests` valida matemática, transformações, diagnósticos e parsing de assets sem dispositivo. `lume_render_test` cria contexto oculto e exercita geometria, materiais, modelos, passes custom HDR/LDR, sombras e leitura de pixels. Oceano e buraco negro têm smoke tests ocultos de dois frames.
 
-Runners Windows hospedados pelo GitHub não expõem driver OpenGL; por isso, o CI Windows compila todos os targets com MSVC e executa o teste unitário sem dispositivo. A suíte OpenGL completa roda sob Xvfb com GCC e Clang. Em uma máquina Windows com driver gráfico, o comando `ctest` normal e sem filtro executa os cinco testes.
+Runners Windows hospedados pelo GitHub não expõem driver OpenGL; por isso, o CI Windows compila todos os targets com MSVC e executa o teste unitário sem dispositivo. MinGW é compilado de forma cruzada. A suíte OpenGL de quatro testes roda sob Xvfb com GCC e Clang. Em Windows com driver gráfico, `ctest` sem filtro executa os quatro testes.

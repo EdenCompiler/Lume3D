@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  linux-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements-build.txt
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev xorg-dev
+      - name: Build and install static SDK
+        run: |
+          cmake -S . -B build-static -DCMAKE_BUILD_TYPE=Release -DLUME_BUILD_TESTS=OFF
+          cmake --build build-static --parallel
+          cmake --install build-static --prefix sdk
+      - name: Build shared library
+        run: |
+          cmake -S . -B build-shared -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DLUME_BUILD_EXAMPLES=OFF -DLUME_BUILD_TESTS=OFF
+          cmake --build build-shared --parallel
+          cmake --install build-shared --prefix shared
+          mkdir -p sdk/lib/shared
+          cp -a shared/lib/liblume3d.so* sdk/lib/shared/
+      - name: Add runnable examples and fixtures
+        run: |
+          mkdir -p sdk/bin sdk/share/Lume3D/tests
+          cp build-static/lume_example_* sdk/bin/
+          cp -a tests/fixtures sdk/share/Lume3D/tests/
+          tar -czf lume3d-1.5.0-linux-x86_64.tar.gz -C sdk .
+      - uses: actions/upload-artifact@v5
+        with:
+          name: linux-sdk
+          path: lume3d-1.5.0-linux-x86_64.tar.gz
+
+  windows-sdk:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Python requirements
+        run: python -m pip install -r requirements-build.txt
+      - name: Build and install static SDK
+        shell: pwsh
+        run: |
+          $python = (Get-Command python).Source
+          cmake -S . -B build-static -A x64 -DLUME_BUILD_TESTS=OFF "-DPython_EXECUTABLE=$python"
+          cmake --build build-static --config Release --parallel
+          cmake --install build-static --config Release --prefix sdk
+      - name: Build shared library
+        shell: pwsh
+        run: |
+          $python = (Get-Command python).Source
+          cmake -S . -B build-shared -A x64 -DBUILD_SHARED_LIBS=ON -DLUME_BUILD_EXAMPLES=OFF -DLUME_BUILD_TESTS=OFF "-DPython_EXECUTABLE=$python"
+          cmake --build build-shared --config Release --parallel
+          cmake --install build-shared --config Release --prefix shared
+          New-Item -ItemType Directory -Force sdk/lib/shared | Out-Null
+          Copy-Item shared/bin/lume3d.dll sdk/lib/shared/
+          Copy-Item shared/lib/lume3d.lib sdk/lib/shared/lume3d-import.lib
+      - name: Add runnable examples and fixtures
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force sdk/bin, sdk/share/Lume3D/tests | Out-Null
+          Copy-Item build-static/Release/lume_example_*.exe sdk/bin/
+          Copy-Item -Recurse tests/fixtures sdk/share/Lume3D/tests/
+          Compress-Archive -Path sdk/* -DestinationPath lume3d-1.5.0-windows-x86_64.zip
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows-sdk
+          path: lume3d-1.5.0-windows-x86_64.zip
+
+  publish:
+    needs: [linux-sdk, windows-sdk]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create checksums
+        run: cd artifacts && sha256sum lume3d-* > SHA256SUMS
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          artifacts/lume3d-1.5.0-linux-x86_64.tar.gz
+          artifacts/lume3d-1.5.0-windows-x86_64.zip
+          artifacts/SHA256SUMS
+          --title "Lume3D ${GITHUB_REF_NAME#v}"
+          --notes-file RELEASE_NOTES.md

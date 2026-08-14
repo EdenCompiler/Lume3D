@@ -1,76 +1,72 @@
-# Guia da API Lume3D 1.0
+# Guia da API Lume3D 1.5
 
-Lume3D expõe um único header público C11:
+O header agregador expõe todos os módulos:
 
 ```c
 #include <lume/lume.h>
 ```
 
-Todo símbolo público começa com `lume_` ou `Lume`. Os handles são opacos; aplicações usam funções em vez de acessar campos internos.
+Aplicações também podem incluir `core.h`, `math.h`, `scene.h`, `render.h`, `assets.h`, `animation.h` ou `debug.h`. Todo nome público está em inglês e começa com `lume_`, `Lume` ou `LUME_`. Nomes da implementação e comentários do fonte estão em português brasileiro; saídas de runtime, compilador, testes e exemplos estão em inglês.
 
-## Aplicativo e diagnósticos
+## Resultados e diagnósticos
 
-`lume_app_create` cria janela GLFW, contexto OpenGL 3.3 Core, estado de input, relógio, renderizador e proprietário dos recursos. Passar `NULL` seleciona `lume_app_config_default()`.
+Chamadas falíveis retornam `LumeResult` e escrevem o resultado pelo parâmetro final `out_...`:
 
-A configuração padrão cria uma janela visível e redimensionável de 1280×720 com VSync. Use `visible = false` em testes automatizados de renderização.
+```c
+LumeApp *app = NULL;
+LumeResult result = lume_app_create(NULL, &app);
+if (result != LUME_SUCCESS) {
+    const LumeError *error = lume_error_last();
+    fprintf(stderr, "%s: %s\n", lume_result_string(result), error->message);
+    return 1;
+}
+```
 
-Funções de criação retornam `NULL` em falha. Operações booleanas retornam `false`. `lume_get_last_error()` devolve o último diagnóstico global do processo em inglês. Configure `log_callback` para receber inicialização e avisos não fatais sem usar a saída padrão.
+`LumeError` contém código, operação, caminho opcional, linha/coluna e mensagem em inglês. O último erro é thread-local. Um callback por aplicativo recebe mensagens info, warning e error em inglês.
 
-Cada frame segue esta ordem:
+## Aplicativo e frames
 
-1. `lume_app_begin_frame` registra o input anterior, processa eventos e devolve segundos decorridos.
-2. Atualize o aplicativo e a cena.
-3. `lume_render` limpa e renderiza uma cena.
+`lume_app_create` cria janela, contexto OpenGL, estado de input, serviços de assets e renderizador. Comece por `lume_app_config_default`; o padrão é uma janela 1280×720 visível, redimensionável e com VSync.
+
+Cada frame tem uma ordem direta:
+
+1. `lume_app_begin_frame` processa eventos e retorna os segundos decorridos.
+2. Atualize cena, animação e estado do aplicativo.
+3. `lume_app_render` renderiza a cena com uma câmera.
 4. `lume_app_end_frame` apresenta o back buffer.
 
-## Input
+Use `lume_renderer_render` para renderizar em `LumeRenderTarget`. O input expõe estados down, pressed e released para teclado e botões do mouse.
 
-Consultas de teclado e mouse oferecem variantes `is_down`, `was_pressed` e `was_released`. As transições são válidas depois de `lume_app_begin_frame`.
+## Cena e transformações
 
-`lume_mouse_position` usa coordenadas da janela. `lume_mouse_delta` informa a mudança desde o frame anterior. `lume_mouse_scroll` informa a rolagem acumulada no frame atual.
+Uma cena possui seus nós. Nós vazios, câmeras, luzes, meshes e meshes instanciadas usam o handle opaco `LumeNode`. Nós têm nome, posição, rotação quaternion, escala, pai e filhos. Matrizes mundiais e bounds são atualizados sob demanda.
 
-## Cenas e nós
+```c
+LumeNode *pivo = NULL;
+LumeNode *malha = NULL;
+lume_node_create(cena, &pivo);
+lume_mesh_create(cena, geometria, material, &malha);
+lume_node_add_child(pivo, malha);
+lume_node_set_position(malha, (LumeVec3){3, 0, 0});
+lume_node_rotate_y(pivo, delta);
+```
 
-`lume_scene_create` registra uma cena no aplicativo. `lume_node_create` adiciona um nó vazio de transformação. Câmeras, malhas e luzes são nós especializados e participam da mesma hierarquia.
+O sistema é destro, +Y aponta para cima, câmeras olham pelo −Z local, ângulos usam radianos e matrizes são column-major.
 
-Transformações contêm posição, rotação Euler XYZ em radianos e escala. `lume_node_add_child` rejeita relações entre cenas e ciclos. Reparenting remove automaticamente o filho do pai anterior. `lume_node_look_at` recebe um alvo no espaço do mundo.
+## Câmeras, luzes e consultas
 
-`lume_node_destroy` destrói o nó escolhido e seus descendentes. `lume_scene_destroy` destrói todos os nós restantes. `lume_app_destroy` destrói com segurança todas as cenas restantes.
+Câmeras perspectiva e ortográfica usam structs de configuração com construtores padrão. Aspect zero usa a proporção do framebuffer. Há luzes ambiente, directional, point e spot. Configurações directional e spot podem habilitar sombras.
 
-## Câmeras
+`lume_scene_raycast` testa AABBs mundiais de meshes visíveis e retorna `LumeRaycastHit` do mais próximo ao distante. O módulo math inclui vetores, quaternions, matrizes, inversão/transformação, rays, AABBs, frusta e interseções.
 
-`lume_camera_create_perspective` recebe campo de visão em radianos, proporção e planos de corte. A proporção padrão é zero, fazendo a projeção acompanhar o framebuffer atual. Use valor positivo para projeção fixa; passe zero a `lume_camera_set_aspect_ratio` para restaurar o modo automático.
+## Recursos
 
-`lume_camera_create_orthographic` recebe planos esquerdo, direito, inferior, superior, próximo e distante.
+Geometrias, texturas, materiais, shaders, pipelines, render targets, environments, modelos e asset jobs usam contagem de referências. A criação retorna uma referência; `retain` acrescenta ownership e `release` o remove. Nós mesh retêm geometria e material. O aplicativo relata handles vazados em inglês ao ser destruído.
 
-O sistema de coordenadas é destro, +Y aponta para cima e câmeras olham ao longo de −Z local.
+Geometrias prontas incluem box, plane e UV sphere. Geometria custom aceita posições, normais, UVs, tangentes, cores, joints/weights e índices opcionais de 32 bits. Materiais incluem unlit, Phong, PBR e pipeline custom.
 
-## Geometria
+Consulte [Renderização](RENDERIZACAO.md), [Assets](ASSETS.md) e [Animação](ANIMACAO.md) para os fluxos completos.
 
-Construtores embutidos criam caixa centralizada, plano XY voltado para +Z e esfera UV. Dimensões e raio devem ser positivos. A esfera exige pelo menos 3×2 segmentos.
+## Ordem de vida útil
 
-`lume_geometry_create_custom` copia todos os arrays fornecidos. Posições possuem três floats por vértice. Normais são opcionais e geradas acumulando normais das faces indexadas. Coordenadas de textura são opcionais e possuem dois floats por vértice. Índices são opcionais; sem eles, cada grupo sequencial de três vértices forma um triângulo. Todos os índices são validados.
-
-A geometria é enviada à GPU no primeiro render e pode ser compartilhada por várias malhas.
-
-## Texturas e materiais
-
-`lume_texture_create` copia pixels RGBA8 para uma textura OpenGL. `lume_texture_load` aceita formatos do stb_image e os expande para RGBA8. Os padrões usam filtragem linear, repetição, mipmaps e inversão vertical da imagem carregada.
-
-`lume_material_create_basic` combina cor e textura opcional sem luzes da cena. `lume_material_create_lambert` aplica luz difusa ambiente, direcional e pontual. Ambos aceitam modo wireframe na criação.
-
-Materiais e texturas devem pertencer ao mesmo aplicativo. `lume_material_set_color` e `lume_material_set_texture` atualizam um material reutilizável.
-
-## Luzes e renderização
-
-Luz ambiente contribui com uma cor constante. Luz direcional usa direção local transformada pelo nó. Luz pontual usa a posição mundial do nó e um alcance finito com queda quadrática suave.
-
-Contribuições ambiente acumulam sem contagem fixa. O shader aceita quatro luzes direcionais e quatro pontuais. Luzes adicionais são ignoradas e produzem aviso em inglês.
-
-`lume_render` valida ownership de aplicativo/cena/câmera, atualiza matrizes mundiais e viewport, limpa cor e profundidade, envia luzes e desenha cada malha. Retorna `false` em ownership inválido, câmera não inversível ou falha do renderizador.
-
-## Ownership de recursos
-
-Cenas possuem nós. Aplicativos possuem cenas, geometrias, materiais, texturas, janela e objetos OpenGL. Handles de recurso permanecem válidos até `lume_app_destroy`; destruição individual de recursos não existe na 1.0 para manter regras de compartilhamento previsíveis.
-
-Não use um handle com outro aplicativo. Não use nós depois de destruir sua cena ou ancestral. Toda chamada que toca janela ou GPU deve ocorrer na thread do aplicativo.
+Destrua players antes das instâncias, instâncias antes da cena, cenas antes do aplicativo e libere handles de recursos antes de `lume_app_destroy`. Passar `NULL` a funções destroy/release é seguro salvo documentação contrária.

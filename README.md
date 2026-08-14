@@ -1,4 +1,4 @@
-# Lume3D — Readable 3D for C
+# Lume3D — Readable native 3D for C
 
 > **Languages / Idiomas:** [English](#english) · [Português do Brasil](#português-do-brasil)
 
@@ -6,176 +6,135 @@
 
 # English
 
-Lume3D is a small native 3D engine for C11. It brings the approachable scene, camera, geometry, material, light, and render flow popularized by Three.js to desktop applications without a browser or JavaScript runtime.
+Lume3D is a native C11 3D library that brings an approachable scene, camera, geometry, material, light, asset, animation, and render flow to desktop applications without a browser or JavaScript runtime.
 
-**Current stable release: 1.0.0**
+**Current stable release: 1.5.0**
 
-![Lume3D version](https://img.shields.io/badge/Lume3D-1.0.0-blue)
+![Lume3D version](https://img.shields.io/badge/Lume3D-1.5.0-blue)
 ![C](https://img.shields.io/badge/C-11-informational)
 ![OpenGL](https://img.shields.io/badge/OpenGL-3.3-informational)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-## What 1.0.0 means
+## What 1.5.0 means
 
-Lume3D 1.0.0 provides a complete first rendering path: an integrated GLFW runtime, stateful keyboard and mouse input, a hierarchical scene graph, perspective and orthographic cameras, indexed custom geometry, built-in box/plane/sphere geometry, image textures, basic and Lambert materials, three light types, and an OpenGL 3.3 renderer.
+Lume3D 1.5 is a major API and renderer expansion. It adds modular public headers, structured results and English diagnostics, reference-counted resources, quaternions and spatial queries, glTF/GLB/OBJ assets, transform animation, asynchronous loading, cache/hot reload, PBR/Phong/unlit/custom materials, HDR and post-processing, cascaded directional and spot shadows, instancing, culling, raycasts, frame statistics, and debug primitives.
 
-The public API is intentionally English and uses opaque handles such as `LumeApp`, `LumeScene`, and `LumeNode`. The implementation is organized and named in Brazilian Portuguese so Portuguese-speaking C developers can study it without changing the API seen by international users. Runtime errors, logs, build targets, tests, and example output are English.
+The public API, runtime errors, build messages, tests, and example output use English. Private implementation identifiers and source comments use Brazilian Portuguese so the engine remains readable to Portuguese-speaking C developers without limiting its international API.
 
-| Subsystem | 1.0.0 status |
+| Subsystem | 1.5.0 status |
 | --- | --- |
-| Runtime | Window, OpenGL context, frame loop, resize, VSync, clear color, and diagnostics |
-| Input | Keyboard and mouse down/pressed/released state, pointer delta, and scrolling |
-| Scene | Owned nodes, parent/child hierarchy, translation, Euler rotation, scale, and look-at |
-| Cameras | Perspective with automatic aspect ratio and configurable orthographic projection |
-| Geometry | Custom indexed/non-indexed meshes, generated normals, box, plane, and UV sphere |
-| Appearance | RGBA textures, stb_image loading, basic material, Lambert material, and wireframe |
-| Lighting | Accumulated ambient light and up to four directional plus four point lights |
-| Platforms | Linux GCC/Clang and Windows MSVC/MinGW-oriented CMake build |
+| Core | C11 runtime, stateful input, structured `LumeResult`/`LumeError`, thread-local diagnostics, leak reporting |
+| Scene | Hierarchy, quaternion transforms, perspective/orthographic cameras, four light types, bounds and raycasts |
+| Assets | OBJ, glTF, GLB, external/embedded data, immutable cache, asynchronous jobs, change detection |
+| Animation | Imported transform clips, once/repeat/ping-pong, pause, seek, speed and crossfade |
+| Rendering | Forward HDR, unlit/Phong/PBR/custom materials, transparency, IBL, ACES, bloom, FXAA, custom passes |
+| Scale | Instanced meshes, frustum culling, three directional cascades, four spot shadow maps, frame statistics |
+| Platforms | Linux GCC/Clang and Windows MSVC/MinGW CMake builds |
 
-## 1.0.0 release highlights
+## 1.5.0 release highlights
 
-- compact C11 API with one public header and opaque implementation types;
-- application-owned GPU resources and scene-owned node hierarchies;
-- automatic OpenGL entry-point loading through a pinned GLAD generator;
-- default cameras that follow framebuffer aspect-ratio changes;
-- English runtime diagnostics through a built-in or user-provided log callback;
-- three runnable examples, deterministic unit tests, and a hidden-window OpenGL smoke test;
-- installable static or shared CMake target named `Lume3D::lume3d`;
-- mirrored English and Brazilian Portuguese guides.
+- modular `core`, `math`, `scene`, `render`, `assets`, `animation`, and `debug` headers plus `lume.h`;
+- type-safe output parameters and actionable English errors with operation/path/line/column context;
+- glTF 2.0, GLB, and OBJ model loading with asynchronous CPU parsing and render-thread upload;
+- reference-counted geometry, textures, materials, shaders, pipelines, targets, environments, and models;
+- metallic/roughness PBR, Phong, unlit, custom GLSL, HDR targets, ACES, bloom, FXAA, and pass chaining;
+- three-cascade sun shadows, up to four shadowed spot lights, hardware instancing, and culling;
+- practical shader ocean and numerically integrated spinning Kerr black-hole examples;
+- device-free tests, hidden-window rendering tests, example smoke tests, and multi-toolchain CI.
 
 ## Installation
 
-Lume3D requires CMake 3.20 or newer, a C11 compiler, Python 3 with Jinja2 for GLAD generation, Git for pinned dependency retrieval, and development packages required by GLFW on the host platform. CMake retrieves the pinned GLFW, GLAD, and stb_image sources automatically.
-
-Install the Python build requirement:
+Requirements: CMake 3.20+, a C11 compiler, Git, Python 3 with Jinja2, OpenGL development support, and GLFW’s native platform prerequisites. Dependencies are pinned and fetched by CMake.
 
     python -m pip install -r requirements-build.txt
-
-Build the library, examples, and tests:
-
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build --parallel
-
-Run the tests:
-
     ctest --test-dir build --output-on-failure
 
-Each example also accepts `--smoke`, which renders two hidden frames and exits for automation.
+On a headless Linux host:
 
-Install the package:
+    xvfb-run -a ctest --test-dir build --output-on-failure
+
+Install and consume the exported target:
 
     cmake --install build --prefix ./install
 
-Use the installed target from another CMake project:
-
 ```cmake
-find_package(Lume3D 1 CONFIG REQUIRED)
+find_package(Lume3D 1.5 CONFIG REQUIRED)
 target_link_libraries(my_application PRIVATE Lume3D::lume3d)
 ```
 
-Options:
-
-| Option | Default | Purpose |
+| CMake option | Default | Purpose |
 | --- | --- | --- |
-| `LUME_BUILD_EXAMPLES` | `ON` | Build the three interactive examples |
-| `LUME_BUILD_TESTS` | `ON` | Build unit and OpenGL smoke tests |
+| `LUME_BUILD_EXAMPLES` | `ON` | Build the two practical shader examples |
+| `LUME_BUILD_TESTS` | `ON` | Build unit, renderer, and example smoke tests |
 | `LUME_WARNINGS_AS_ERRORS` | `OFF` | Promote Lume3D compiler warnings to errors |
-| `BUILD_SHARED_LIBS` | `OFF` | Build Lume3D and its bundled targets as shared libraries |
+| `BUILD_SHARED_LIBS` | `OFF` | Build shared rather than static libraries |
 
-See [Building Lume3D](doc-en/BUILDING.md) for Linux, Windows, sanitizer, and consumer-package workflows.
+See [Building Lume3D](doc-en/BUILDING.md) for Linux, Windows, sanitizers, and package consumption.
 
-## Quick tour
-
-### Window, scene, and spinning cube
+## Minimal scene
 
 ```c
 #include <lume/lume.h>
+#include <stdio.h>
 
 int main(void)
 {
-    LumeApp *app = lume_app_create(NULL);
-    LumeScene *scene = lume_scene_create(app);
-    LumeNode *camera = lume_camera_create_perspective(scene, NULL);
-    LumeGeometry *box = lume_geometry_create_box(app, 1.0f, 1.0f, 1.0f);
-    LumeMaterial *material = lume_material_create_basic(app, NULL);
-    LumeNode *cube = lume_mesh_create(scene, box, material);
+    LumeApp *app = NULL;
+    LumeScene *scene = NULL;
+    LumeNode *camera = NULL;
 
-    lume_node_set_position(camera, (LumeVec3){0.0f, 0.0f, 3.0f});
-
-    while (!lume_app_should_close(app)) {
-        float delta_time = lume_app_begin_frame(app);
-        lume_node_rotate_y(cube, delta_time);
-        lume_render(app, scene, camera);
-        lume_app_end_frame(app);
+    if (lume_app_create(NULL, &app) != LUME_SUCCESS ||
+        lume_scene_create(app, &scene) != LUME_SUCCESS ||
+        lume_camera_create_perspective(scene, NULL, &camera) != LUME_SUCCESS) {
+        fprintf(stderr, "Startup failed: %s\n", lume_error_last()->message);
+        lume_app_destroy(app);
+        return 1;
     }
 
+    lume_node_set_position(camera, (LumeVec3){0, 0, 3});
+    while (!lume_app_should_close(app)) {
+        lume_app_begin_frame(app);
+        lume_app_render(app, scene, camera);
+        lume_app_end_frame(app);
+    }
     lume_app_destroy(app);
+    return 0;
 }
 ```
 
-Check a creation call before using its result. `lume_get_last_error()` describes the most recent failure in English. Destroying the application also destroys its scenes, geometry, materials, and textures.
+## Practical examples
 
-### Scene hierarchy
+    ./build/lume_example_ocean
+    ./build/lume_example_black_hole
 
-Empty nodes make useful pivots. A child inherits its parent's transform:
+The ocean uses true 3D Gerstner displacement, finite-difference normals, Fresnel water, crest foam, sun glitter, and a procedural sky in the low-horizon camera style of the supplied video reference.
 
-```c
-LumeNode *orbit = lume_node_create(scene);
-LumeNode *planet = lume_mesh_create(scene, sphere, planet_material);
+The spinning black hole uses a reduced Kerr geodesic integrator in GLSL with `a = 0.82M`. It renders the spin-dependent horizon shadow, frame-dragged primary/secondary disk images, gravitational redshift, and relativistic Doppler beaming. The example documents where its continuous ray-plane reconstruction differs from a full Carter polar integration.
 
-lume_node_set_position(planet, (LumeVec3){4.0f, 0.0f, 0.0f});
-lume_node_add_child(orbit, planet);
-lume_node_rotate_y(orbit, delta_time * 0.4f);
-```
-
-### Materials, textures, and lights
-
-```c
-LumeTexture *texture = lume_texture_load(app, "crate.png", NULL);
-LumeLambertMaterialConfig material_config = lume_lambert_material_config_default();
-material_config.texture = texture;
-
-LumeMaterial *material = lume_material_create_lambert(app, &material_config);
-LumeNode *mesh = lume_mesh_create(scene, box, material);
-
-lume_ambient_light_create(scene, NULL);
-lume_directional_light_create(scene, NULL);
-```
-
-## Suggested architecture
-
-Applications normally keep one `LumeApp`, one or more scenes, and resource handles shared by meshes:
-
-```text
-LumeApp
-├── window, input, clock, and OpenGL renderer
-├── geometry, materials, and textures
-└── LumeScene
-    ├── camera
-    ├── lights
-    └── nodes
-        └── child nodes
-```
-
-The scene destroys its node hierarchy. The application destroys all scenes and GPU resources still alive. Rendering and resource creation are single-threaded and must occur on the application thread.
+See the [example guide](doc-en/EXAMPLES.md) for the implementation and physics boundaries.
 
 ## Documentation
 
-- [API guide](doc-en/API.md) — public types, defaults, ownership, and diagnostics;
-- [Building](doc-en/BUILDING.md) — toolchains, CMake options, tests, and installation;
-- [Architecture](doc-en/ARCHITECTURE.md) — data flow, coordinate system, modules, and renderer limits;
-- [Example guide](doc-en/EXAMPLES.md) — what each example demonstrates and how to run it;
-- [Changelog](CHANGELOG.md) — release history.
+- [API guide](doc-en/API.md)
+- [Building](doc-en/BUILDING.md)
+- [Architecture](doc-en/ARCHITECTURE.md)
+- [Rendering](doc-en/RENDERING.md)
+- [Assets](doc-en/ASSETS.md)
+- [Animation](doc-en/ANIMATION.md)
+- [Practical examples](doc-en/EXAMPLES.md)
+- [Changelog](CHANGELOG.md)
 
-Brazilian Portuguese mirrors are available under [`doc-ptbr`](doc-ptbr/).
+Brazilian Portuguese mirrors are under [`doc-ptbr`](doc-ptbr/).
 
-## Current limitations
+## Current boundaries
 
 - OpenGL 3.3 Core is the only rendering backend.
-- The runtime and renderer are single-threaded.
-- A scene renders opaque triangles; transparent sorting is not implemented.
-- Custom shaders, glTF/OBJ loaders, skeletal animation, shadows, PBR, post-processing, audio, browser, and mobile support are outside 1.0.0.
-- Lambert lighting supports four directional and four point lights per rendered scene; additional lights are ignored with an English warning.
+- GPU resource creation and rendering occur on the application thread.
+- Joint/weight streams import, but skin deformation and morph-weight evaluation remain experimental.
+- MSAA sample fields and GPU time statistics are reserved; 1.5 does not resolve multisampled custom targets or issue timer queries.
+- Browser, mobile, audio, physics, and editor tooling are outside this library.
 
 ## License
 
@@ -185,129 +144,75 @@ Lume3D is available under the [MIT License](LICENSE).
 
 # Português do Brasil
 
-Lume3D é uma pequena engine 3D nativa para C11. Ela leva às aplicações desktop o fluxo acessível de cena, câmera, geometria, material, luz e renderização popularizado pelo Three.js, sem navegador ou runtime JavaScript.
+Lume3D é uma biblioteca 3D nativa C11 que leva às aplicações desktop um fluxo acessível de cena, câmera, geometria, material, luz, assets, animação e renderização sem navegador ou runtime JavaScript.
 
-**Versão estável atual: 1.0.0**
+**Versão estável atual: 1.5.0**
 
-## O que 1.0.0 significa
+## O que 1.5.0 significa
 
-Lume3D 1.0.0 fornece um primeiro caminho completo de renderização: runtime GLFW integrado, input stateful de teclado e mouse, grafo de cena hierárquico, câmeras perspectiva e ortográfica, geometria personalizada indexada, caixa/plano/esfera, texturas de imagem, materiais basic e Lambert, três tipos de luz e renderizador OpenGL 3.3.
+Lume3D 1.5 é uma grande expansão da API e do renderizador. Ela adiciona headers públicos modulares, resultados estruturados e diagnósticos em inglês, recursos com contagem de referências, quaternions e consultas espaciais, assets glTF/GLB/OBJ, animação de transformações, carregamento assíncrono, cache/hot reload, materiais PBR/Phong/unlit/custom, HDR e pós-processamento, sombras direcionais em cascata e spot, instancing, culling, raycasts, estatísticas e primitivas de debug.
 
-A API pública usa inglês deliberadamente e expõe handles opacos como `LumeApp`, `LumeScene` e `LumeNode`. A implementação é organizada e nomeada em português do Brasil para que desenvolvedores C lusófonos possam estudá-la sem alterar a API vista por usuários internacionais. Erros, logs, targets de build, testes e saídas dos exemplos usam inglês.
+A API pública, erros de runtime, mensagens de build, testes e saídas dos exemplos usam inglês. Identificadores privados e comentários do código-fonte usam português brasileiro, mantendo a engine legível para desenvolvedores lusófonos sem limitar sua API internacional.
 
-| Subsistema | Estado na 1.0.0 |
+| Subsistema | Estado na 1.5.0 |
 | --- | --- |
-| Runtime | Janela, contexto OpenGL, loop de frame, resize, VSync, cor de limpeza e diagnósticos |
-| Input | Estados down/pressed/released de teclado e mouse, delta do cursor e rolagem |
-| Cena | Nós possuídos, hierarquia pai/filho, translação, rotação Euler, escala e look-at |
-| Câmeras | Perspectiva com proporção automática e projeção ortográfica configurável |
-| Geometria | Malhas personalizadas, normais geradas, caixa, plano e esfera UV |
-| Aparência | Texturas RGBA, carregamento stb_image, materiais basic/Lambert e wireframe |
-| Iluminação | Luz ambiente acumulada e até quatro luzes direcionais e quatro pontuais |
-| Plataformas | Build CMake orientado a Linux GCC/Clang e Windows MSVC/MinGW |
-
-## Destaques da versão 1.0.0
-
-- API C11 compacta com um header público e tipos de implementação opacos;
-- recursos de GPU possuídos pelo aplicativo e hierarquias de nós possuídas pela cena;
-- carregamento de funções OpenGL por um gerador GLAD fixado;
-- câmeras padrão que acompanham mudanças de proporção do framebuffer;
-- diagnósticos de runtime em inglês via callback embutido ou definido pelo usuário;
-- três exemplos executáveis, testes unitários determinísticos e smoke test OpenGL;
-- target CMake estático ou compartilhado instalável chamado `Lume3D::lume3d`;
-- guias espelhados em inglês e português do Brasil.
+| Core | Runtime C11, input stateful, `LumeResult`/`LumeError`, diagnósticos por thread e relatório de leaks |
+| Cena | Hierarquia, quaternions, duas câmeras, quatro tipos de luz, bounds e raycasts |
+| Assets | OBJ, glTF, GLB, dados externos/embutidos, cache imutável, jobs assíncronos e detecção de mudanças |
+| Animação | Clips de transformação, once/repeat/ping-pong, pausa, seek, velocidade e crossfade |
+| Renderização | Forward HDR, unlit/Phong/PBR/custom, transparência, IBL, ACES, bloom, FXAA e passes custom |
+| Escala | Instancing, frustum culling, três cascatas direcionais, quatro sombras spot e estatísticas |
+| Plataformas | Builds CMake Linux GCC/Clang e Windows MSVC/MinGW |
 
 ## Instalação
 
-Lume3D requer CMake 3.20 ou mais recente, compilador C11, Python 3 com Jinja2 para gerar o GLAD, Git para obter dependências fixadas e os pacotes de desenvolvimento exigidos pelo GLFW na plataforma. O CMake obtém automaticamente GLFW, GLAD e stb_image.
-
-Instale o requisito Python de build:
+Requisitos: CMake 3.20+, compilador C11, Git, Python 3 com Jinja2, suporte OpenGL de desenvolvimento e pré-requisitos nativos do GLFW. As dependências são fixadas e obtidas pelo CMake.
 
     python -m pip install -r requirements-build.txt
-
-Compile a biblioteca, os exemplos e os testes:
-
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build --parallel
-
-Execute os testes:
-
     ctest --test-dir build --output-on-failure
 
-Cada exemplo também aceita `--smoke`, que renderiza dois frames ocultos e encerra para automação.
-
-Instale o pacote:
+Instale e consuma o target exportado:
 
     cmake --install build --prefix ./install
 
-Consuma o target instalado em outro projeto CMake:
-
 ```cmake
-find_package(Lume3D 1 CONFIG REQUIRED)
+find_package(Lume3D 1.5 CONFIG REQUIRED)
 target_link_libraries(meu_aplicativo PRIVATE Lume3D::lume3d)
 ```
 
-Consulte [Compilando o Lume3D](doc-ptbr/COMPILACAO.md) para fluxos Linux, Windows, sanitizers e pacote consumidor.
+Consulte [Compilando o Lume3D](doc-ptbr/COMPILACAO.md) para Linux, Windows, sanitizers e consumo do pacote.
 
-## Visão rápida
+## Exemplos práticos
 
-### Janela, cena e cubo giratório
+    ./build/lume_example_ocean
+    ./build/lume_example_black_hole
 
-O exemplo mínimo em inglês acima é a forma canônica da API. Cada frame começa com `lume_app_begin_frame`, renderiza com `lume_render` e termina com `lume_app_end_frame`.
+O oceano usa deslocamento Gerstner 3D, normais por diferenças finitas, água Fresnel, espuma nas cristas, brilho solar e céu procedural no estilo de câmera de horizonte baixo da referência em vídeo.
 
-Verifique o resultado de uma criação antes de usá-lo. `lume_get_last_error()` descreve em inglês a falha mais recente. Destruir o aplicativo também destrói cenas, geometrias, materiais e texturas pertencentes a ele.
+O buraco negro em rotação usa um integrador reduzido de geodésicas Kerr em GLSL com `a = 0.82M`. Ele mostra sombra dependente do spin, imagens do disco afetadas por frame dragging, redshift gravitacional e Doppler beaming relativístico. O exemplo documenta a diferença entre sua reconstrução contínua por planos e uma integração polar completa de Carter.
 
-### Hierarquia de cena
-
-Nós vazios funcionam como pivôs. Um filho herda a transformação do pai:
-
-```c
-LumeNode *orbita = lume_node_create(scene);
-LumeNode *planeta = lume_mesh_create(scene, sphere, planet_material);
-
-lume_node_set_position(planeta, (LumeVec3){4.0f, 0.0f, 0.0f});
-lume_node_add_child(orbita, planeta);
-lume_node_rotate_y(orbita, delta_time * 0.4f);
-```
-
-### Materiais, texturas e luzes
-
-O material `basic` ignora iluminação. O material `lambert` combina cor e textura com luzes ambiente, direcionais e pontuais. Consulte o [Guia da API](doc-ptbr/API.md) para configurações e valores padrão.
-
-## Arquitetura sugerida
-
-Aplicações normalmente mantêm um `LumeApp`, uma ou mais cenas e handles de recursos compartilhados pelas malhas:
-
-```text
-LumeApp
-├── janela, input, relógio e renderizador OpenGL
-├── geometrias, materiais e texturas
-└── LumeScene
-    ├── câmera
-    ├── luzes
-    └── nós
-        └── nós filhos
-```
-
-A cena destrói sua hierarquia de nós. O aplicativo destrói todas as cenas e recursos de GPU ainda existentes. Renderização e criação de recursos são single-threaded e devem ocorrer na thread do aplicativo.
+Consulte o [guia dos exemplos](doc-ptbr/EXEMPLOS.md) para os detalhes e limites físicos.
 
 ## Documentação
 
-- [Guia da API](doc-ptbr/API.md) — tipos públicos, padrões, ownership e diagnósticos;
-- [Compilação](doc-ptbr/COMPILACAO.md) — toolchains, opções CMake, testes e instalação;
-- [Arquitetura](doc-ptbr/ARQUITETURA.md) — fluxo de dados, coordenadas, módulos e limites;
-- [Guia dos exemplos](doc-ptbr/EXEMPLOS.md) — objetivo e execução de cada exemplo;
-- [Changelog](CHANGELOG.md) — histórico de versões em inglês.
+- [Guia da API](doc-ptbr/API.md)
+- [Compilação](doc-ptbr/COMPILACAO.md)
+- [Arquitetura](doc-ptbr/ARQUITETURA.md)
+- [Renderização](doc-ptbr/RENDERIZACAO.md)
+- [Assets](doc-ptbr/ASSETS.md)
+- [Animação](doc-ptbr/ANIMACAO.md)
+- [Exemplos práticos](doc-ptbr/EXEMPLOS.md)
+- [Changelog](CHANGELOG.md)
 
-Os documentos primários em inglês ficam em [`doc-en`](doc-en/).
+## Limites atuais
 
-## Limitações atuais
-
-- OpenGL 3.3 Core é o único backend de renderização.
-- Runtime e renderizador são single-threaded.
-- Uma cena renderiza triângulos opacos; ordenação de transparência não está implementada.
-- Shaders personalizados, glTF/OBJ, animação esquelética, sombras, PBR, pós-processamento, áudio, browser e mobile estão fora da 1.0.0.
-- A iluminação Lambert suporta quatro luzes direcionais e quatro pontuais por cena; luzes adicionais são ignoradas com aviso em inglês.
+- OpenGL 3.3 Core é o único backend.
+- Criação de recursos GPU e renderização ocorrem na thread do aplicativo.
+- Streams de joints/weights são importados; deformação de skin e morph weights permanecem experimentais.
+- Campos MSAA e tempo de GPU estão reservados; 1.5 não resolve targets multisample nem emite timer queries.
+- Navegador, mobile, áudio, física e editor estão fora do escopo.
 
 ## Licença
 

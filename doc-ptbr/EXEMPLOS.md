@@ -1,44 +1,50 @@
-# Guia dos exemplos Lume3D
+# Exemplos práticos do Lume3D
 
-Compile os exemplos com a configuração padrão:
+Lume3D 1.5 inclui dois exemplos focados. Ambos são cenas animadas completas, construídas apenas com a API pública e shaders GLSL customizados; nenhum depende de assets baixados.
+
+Compile e execute:
 
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build --parallel
 
-Pressione Escape para fechar qualquer exemplo.
+    ./build/lume_example_ocean
+    ./build/lume_example_black_hole
 
-Passe `--smoke` para ocultar a janela, desativar VSync, renderizar dois frames e sair. Esse é o modo usado pela suíte de testes.
+Pressione Escape para fechar. Passe `--smoke` para criar uma janela oculta, renderizar dois frames e sair; CTest usa esse modo nos dois exemplos.
 
-## Exemplos disponíveis
+## Oceano com shaders
 
-| Target | Fonte | Demonstra |
-| --- | --- | --- |
-| `lume_example_cube` | `examples/cubo.c` | Fluxo mínimo app/cena/câmera, material basic e rotação independente de frame rate |
-| `lume_example_solar_system` | `examples/sistema_solar.c` | Pivôs vazios, transformações aninhadas, geometria compartilhada e vários materiais |
-| `lume_example_lighting` | `examples/iluminacao.c` | Textura RGBA procedural, material Lambert, luzes ambiente/direcional/pontual e câmera look-at |
+Fonte: `examples/oceano.c`
 
-Execute no Linux a partir da raiz:
+O oceano é uma superfície contínua densa, deslocada por quatro trens direcionais de ondas Gerstner. O vertex shader altera os três componentes da posição, calcula uma normal suave por diferenças finitas e envia a energia da crista ao fragment shader. O fragment shader combina reflexão Fresnel, brilho solar, cor por altura, ruído em múltiplas escalas e faixas estreitas de espuma quebrando. Um céu procedural de tela inteira cria o horizonte baixo com nuvens.
 
-    ./build/lume_example_cube
-    ./build/lume_example_solar_system
-    ./build/lume_example_lighting
+A câmera segue o enquadramento amplo e próximo da superfície da referência. Use W/A/S/D para percorrer a superfície sem perder esse estilo de câmera.
 
-    ./build/lume_example_cube --smoke
+O exemplo serve como modelo para:
 
-Geradores multi-configuração colocam executáveis em subdiretório como `build/Release`.
+- deslocamento animado de vértices;
+- normais por diferenças finitas no shader;
+- múltiplos materiais custom e uniformes de frame;
+- superfícies procedurais grandes e composição de horizonte baixo.
 
-## Cubo giratório
+## Buraco negro de Kerr em rotação
 
-O exemplo do cubo segue o menor ciclo útil. Cria primeiro o aplicativo porque cenas e recursos pertencem a ele. Depois cria cena, câmera perspectiva padrão, geometria de caixa, material basic e nó de malha.
+Fonte: `examples/buraco_negro.c`
 
-A câmera move-se para +Z e mantém a direção local −Z padrão. Cada frame processa eventos, gira o cubo usando segundos decorridos, renderiza e troca buffers. Todo caminho de falha imprime `lume_get_last_error()` em inglês e libera o aplicativo.
+O fragment shader é uma demonstração compacta de relatividade numérica, não um redemoinho em screen-space. Em unidades geométricas (`G = c = 1`), ele usa um integrador Kerr reduzido por planos de raios com spin `a = 0.82M`. O movimento radial usa o potencial separado de Kerr:
 
-## Hierarquia de cena
+```text
+Δ = r² − 2Mr + a²
+R(r) = [r² + a² − aξ]² − Δ[η + (ξ − a)²]
+```
 
-O sistema solar compartilha uma esfera entre três malhas. Nós vazios funcionam como pivôs de órbita. Girar o pivô da Terra move a Terra e o pivô da Lua; o pivô da Lua fornece sua órbita independente.
+Ele deriva o horizonte externo como `r₊ = M + √(M² − a²)`, usa o ISCO Kerr prógrado `r ≈ 2.8019M` e avalia a taxa física de frame dragging ZAMO ao reconstruir cada raio num plano orbital 3D contínuo. Raios atravessam o horizonte ou escapam ao campo de estrelas. Raios curvados encontram um disco fino; sua emissão usa velocidade angular de órbita circular Kerr, redshift gravitacional/Doppler, temperatura radial e o fator de intensidade invariante `g³`.
 
-O exemplo usa materiais basic para mostrar cores sem luzes e manter o foco na relação entre transformações.
+O solver reduzido preserva os principais efeitos do spin Kerr e imagens contínuas primária/secundária do disco, mas não é uma integração adaptativa completa das equações radial e polar de Carter. Ele não modela turbulência magnetohidrodinâmica nem transferência radiativa volumétrica.
 
-## Iluminação
+O exemplo serve como modelo para:
 
-O exemplo de iluminação cria uma textura checker 2×2 diretamente de bytes RGBA. Um material Lambert combina a textura com luz ambiente, direcional e pontual quente. A posição do nó de luz pontual controla sua fonte no mundo.
+- shaders custom de tela inteira;
+- simulações numericamente integradas em GLSL;
+- constantes e condições de parada com significado físico;
+- uniformes que acompanham resize.

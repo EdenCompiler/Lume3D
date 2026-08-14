@@ -62,7 +62,7 @@ static const char *lume_fragmento_padrao =
     "FragColor=vec4(lit,base.a);}";
 static const char *lume_vertice_tela =
     "#version 330 core\nout vec2 vUv;void main(){vec2 "
-    "p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);vUv=p*.5;gl_Position=vec4(p*2-1,0,1);}";
+    "p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);vUv=p;gl_Position=vec4(p*2-1,0,1);}";
 static const char *lume_fragmento_tom =
     "#version 330 core\nin vec2 vUv;out vec4 FragColor;uniform sampler2D uColor;uniform float uExposure;uniform int "
     "uTone;uniform bool uFxaa;uniform bool uBloom;"
