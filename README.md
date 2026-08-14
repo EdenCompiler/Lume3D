@@ -39,7 +39,7 @@ The public API, runtime errors, build messages, tests, and example output use En
 - reference-counted geometry, textures, materials, shaders, pipelines, targets, environments, and models;
 - metallic/roughness PBR, Phong, unlit, custom GLSL, HDR targets, ACES, bloom, FXAA, and pass chaining;
 - three-cascade sun shadows, up to four shadowed spot lights, hardware instancing, and culling;
-- practical shader ocean and numerically integrated spinning Kerr black-hole examples;
+- practical shader ocean and numerically integrated Schwarzschild black-hole examples;
 - device-free tests, hidden-window rendering tests, example smoke tests, and multi-toolchain CI.
 
 ## Installation
@@ -111,7 +111,7 @@ int main(void)
 
 The ocean uses true 3D Gerstner displacement, finite-difference normals, Fresnel water, crest foam, sun glitter, and a procedural sky in the low-horizon camera style of the supplied video reference.
 
-The spinning black hole uses a reduced Kerr geodesic integrator in GLSL with `a = 0.82M`. It renders the spin-dependent horizon shadow, frame-dragged primary/secondary disk images, gravitational redshift, and relativistic Doppler beaming. The example documents where its continuous ray-plane reconstruction differs from a full Carter polar integration.
+The black-hole example adapts the supplied Schwarzschild C ray-tracer into a normalized GLSL geodesic integrator. It uses midpoint stepping, horizon and equatorial-disk intersection tests, a rotating Doppler-beamed disk, stars, and a gravity-grid world. Arrow keys orbit, `W`/`S` zoom, and `R` resets the virtual camera; its limits relative to a full Kerr solver are documented.
 
 See the [example guide](doc-en/EXAMPLES.md) for the implementation and physics boundaries.
 
@@ -191,7 +191,7 @@ Consulte [Compilando o Lume3D](doc-ptbr/COMPILACAO.md) para Linux, Windows, sani
 
 O oceano usa deslocamento Gerstner 3D, normais por diferenças finitas, água Fresnel, espuma nas cristas, brilho solar e céu procedural no estilo de câmera de horizonte baixo da referência em vídeo.
 
-O buraco negro em rotação usa um integrador reduzido de geodésicas Kerr em GLSL com `a = 0.82M`. Ele mostra sombra dependente do spin, imagens do disco afetadas por frame dragging, redshift gravitacional e Doppler beaming relativístico. O exemplo documenta a diferença entre sua reconstrução contínua por planos e uma integração polar completa de Carter.
+O exemplo de buraco negro adapta o ray tracer C de Schwarzschild fornecido para um integrador GLSL de geodésicas normalizado. Ele usa passos de ponto médio, testes de interseção do horizonte e do disco equatorial, disco rotativo com beaming Doppler, estrelas e um mundo de grade gravitacional. As setas orbitam, `W`/`S` aplicam zoom e `R` restaura a câmera virtual; seus limites frente a um solver Kerr completo estão documentados.
 
 Consulte o [guia dos exemplos](doc-ptbr/EXEMPLOS.md) para os detalhes e limites físicos.
 

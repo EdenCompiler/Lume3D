@@ -9,7 +9,7 @@
 - added unlit, Phong, PBR, custom shader materials, typed uniform setters, render targets, and HDR/LDR custom passes;
 - added environment lighting, transparency, HDR, ACES, bloom, FXAA, frustum culling, and frame statistics;
 - added three-cascade directional shadows and up to four spot shadow maps;
-- added practical 3D shader-ocean and spinning Kerr geodesic black-hole examples;
+- added practical 3D shader-ocean and Schwarzschild geodesic black-hole examples;
 - fixed fullscreen HDR/post-processing texture coordinates so the full source image is sampled;
 - expanded tests, GCC/Clang/MSVC/MinGW CI, installable SDK packaging, and mirrored English/Brazilian Portuguese documentation.
 

@@ -27,20 +27,20 @@ O exemplo serve como modelo para:
 - múltiplos materiais custom e uniformes de frame;
 - superfícies procedurais grandes e composição de horizonte baixo.
 
-## Buraco negro de Kerr em rotação
+## Buraco negro de Schwarzschild e disco em rotação
 
 Fonte: `examples/buraco_negro.c`
 
-O fragment shader é uma demonstração compacta de relatividade numérica, não um redemoinho em screen-space. Em unidades geométricas (`G = c = 1`), ele usa um integrador Kerr reduzido por planos de raios com spin `a = 0.82M`. O movimento radial usa o potencial separado de Kerr:
+O fragment shader é uma demonstração compacta de relatividade numérica, não um redemoinho em screen-space. Ele adapta a estrutura do ray tracer C fornecido para uma implementação GLSL em tempo real, em unidades normalizadas do raio de Schwarzschild. Um raio guarda posição e velocidade esféricas; o shader o avança com integração de ponto médio das equações diferenciais de geodésicas de Schwarzschild:
 
 ```text
-Δ = r² − 2Mr + a²
-R(r) = [r² + a² − aξ]² − Δ[η + (ξ − a)²]
+f(r) = 1 − rₛ / r
+d²r/dλ², d²θ/dλ², d²φ/dλ² = lado direito da geodésica de Schwarzschild
 ```
 
-Ele deriva o horizonte externo como `r₊ = M + √(M² − a²)`, usa o ISCO Kerr prógrado `r ≈ 2.8019M` e avalia a taxa física de frame dragging ZAMO ao reconstruir cada raio num plano orbital 3D contínuo. Raios atravessam o horizonte ou escapam ao campo de estrelas. Raios curvados encontram um disco fino; sua emissão usa velocidade angular de órbita circular Kerr, redshift gravitacional/Doppler, temperatura radial e o fator de intensidade invariante `g³`.
+Em cada passo ele testa o horizonte de eventos (`r ≤ rₛ`) e detecta a mudança de sinal na passagem pelo plano equatorial. Uma passagem entre os raios do disco emite a cor de um disco rotativo com temperatura radial e beaming Doppler especial-relativístico. Raios que escapam amostram o campo de estrelas; o mundo com grade gravitacional é renderizado atrás do resultado traçado. As setas orbitam a câmera virtual, `W`/`S` aplicam zoom, `R` restaura a visão e `Esc` sai.
 
-O solver reduzido preserva os principais efeitos do spin Kerr e imagens contínuas primária/secundária do disco, mas não é uma integração adaptativa completa das equações radial e polar de Carter. Ele não modela turbulência magnetohidrodinâmica nem transferência radiativa volumétrica.
+O solver reduzido usa um número fixo de passos de ponto médio. Ele não é um renderizador adaptativo, um solver Kerr completo (métrica com spin), uma simulação magnetohidrodinâmica do disco ou transferência radiativa volumétrica. O disco gira visualmente, mas frame dragging exige uma extensão Kerr, não esta métrica de Schwarzschild.
 
 O exemplo serve como modelo para:
 

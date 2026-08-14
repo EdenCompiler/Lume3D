@@ -135,6 +135,10 @@ if(MSVC)
     endif()
 else()
     target_compile_options(lume3d PRIVATE -Wall -Wextra -Wpedantic)
+    set_source_files_properties(
+        ${tinycthread_SOURCE_DIR}/source/tinycthread.c
+        PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter"
+    )
     if(LUME_WARNINGS_AS_ERRORS)
         target_compile_options(lume3d PRIVATE -Werror)
     endif()

@@ -27,20 +27,20 @@ This example is useful as a template for:
 - multiple custom materials and shared frame uniforms;
 - large procedural surfaces and low-horizon composition.
 
-## Spinning Kerr black hole
+## Schwarzschild black hole and rotating disk
 
 Source: `examples/buraco_negro.c`
 
-The black-hole fragment shader is a compact numerical relativity demonstration, not a screen-space swirl. In geometric units (`G = c = 1`) it uses a reduced Kerr ray-plane integrator with spin `a = 0.82M`. The radial motion uses the separated Kerr potential:
+The black-hole fragment shader is a compact numerical-relativity demonstration, not a screen-space swirl. It adapts the supplied C ray-tracer structure to a real-time GLSL implementation in normalized Schwarzschild-radius units. A ray stores spherical position and velocity, then the shader advances it with a midpoint integration of the Schwarzschild geodesic differential equations:
 
 ```text
-Δ = r² − 2Mr + a²
-R(r) = [r² + a² − aξ]² − Δ[η + (ξ − a)²]
+f(r) = 1 − rₛ / r
+d²r/dλ², d²θ/dλ², d²φ/dλ² = Schwarzschild geodesic RHS
 ```
 
-It derives the outer event horizon as `r₊ = M + √(M² − a²)`, uses the prograde Kerr ISCO `r ≈ 2.8019M`, and evaluates the physical ZAMO frame-dragging rate while reconstructing each ray in a continuous 3D orbital plane. Rays either cross the horizon or escape to the star field. Bent rays intersect a thin disk; emission uses the Kerr circular-orbit angular velocity, gravitational/Doppler redshift, radial temperature, and invariant-intensity `g³` factor.
+At each step it tests the event horizon (`r ≤ rₛ`) and detects a sign change through the equatorial plane. A crossing inside the disk radii emits a rotating, radially heated disk color, with special-relativistic Doppler beaming. Escaping rays sample the star field; the gravity-grid world is rendered behind the ray-traced result. Arrow keys orbit the virtual camera, `W`/`S` zoom, `R` resets it, and `Esc` exits.
 
-This reduced solver preserves the principal Kerr spin effects and continuous primary/secondary disk images, but it is not a full adaptive integration of both Carter radial and polar equations. It does not model magnetohydrodynamic turbulence or volumetric radiative transfer.
+This reduced solver uses a fixed number of midpoint steps. It is not an adaptive renderer, a full Kerr (spinning-metric) solver, a magnetohydrodynamic disk simulation, or volumetric radiative transfer. The disk rotates visually, but frame dragging requires a Kerr extension rather than this Schwarzschild metric.
 
 This example is useful as a template for:
 

@@ -1,5 +1,6 @@
 #include <lume/lume.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -9,64 +10,48 @@ static const char *shader_vertice =
     "out vec2 vUv;void main(){vUv=aUv;gl_Position=vec4(aPosition.xy,0.0,1.0);}";
 
 static const char *shader_fragmento =
-    /* As equações usam unidades geométricas, nas quais G e c valem 1. */
+    /* O traçado usa o raio de Schwarzschild como unidade de comprimento. */
     "#version 330 core\n"
-    "in vec2 vUv;out vec4 FragColor;uniform float uTime;uniform vec2 uResolution;"
-    "float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}"
-    "float stars(vec2 p){vec2 cell=floor(p);vec2 local=fract(p)-.5;float n=hash(cell);"
-    "float star=1.0-smoothstep(0.0,.055,length(local));return star*step(.985,n)*(1.2+.8*sin(n*50.0));}"
-    "vec3 blackbody(float t){float x=clamp((t-1000.0)/11000.0,0.0,1.0);"
-    "return mix(vec3(1.0,.035,.002),mix(vec3(1.0,.34,.035),vec3(.62,.78,1.0),smoothstep(.35,1.0,x)),smoothstep(0.0,.62,x));}"
+    "in vec2 vUv;out vec4 FragColor;uniform float uTime;uniform vec2 uResolution;uniform float uAzimuth;uniform float uElevation;uniform float uDistance;"
+    "float linhaGrade(vec2 p){vec2 largura=fwidth(p);vec2 celula=abs(fract(p-.5)-.5)/largura;"
+    "return 1.0-min(min(celula.x,celula.y),1.0);}"
+    "float aleatorio(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,151.7182)))*43758.5453);}"
+    "vec3 estrelas(vec3 direction){float s=aleatorio(floor(direction*540.0));return s>.9975?vec3((s-.9975)*400.0):vec3(0.0);}"
+    "struct Raio{float r;float theta;float phi;float dr;float dtheta;float dphi;float energia;};"
+    "vec3 posicao(Raio raio){float seno=sin(raio.theta);return vec3(raio.r*seno*cos(raio.phi),raio.r*cos(raio.theta),raio.r*seno*sin(raio.phi));}"
+    "Raio criarRaio(vec3 origem,vec3 direcao){Raio raio;raio.r=length(origem);raio.theta=acos(clamp(origem.y/raio.r,-1.0,1.0));raio.phi=atan(origem.z,origem.x);"
+    "float seno=max(sin(raio.theta),.0001);raio.dr=dot(normalize(origem),direcao);"
+    "raio.dtheta=(cos(raio.theta)*cos(raio.phi)*direcao.x-seno*direcao.y+cos(raio.theta)*sin(raio.phi)*direcao.z)/raio.r;"
+    "raio.dphi=(-sin(raio.phi)*direcao.x+cos(raio.phi)*direcao.z)/(raio.r*seno);"
+    "float lapse=max(1.0-1.0/raio.r,.001);raio.energia=lapse*sqrt(raio.dr*raio.dr/lapse+raio.r*raio.r*(raio.dtheta*raio.dtheta+seno*seno*raio.dphi*raio.dphi));return raio;}"
+    "void derivadas(Raio raio,out vec3 velocidade,out vec3 aceleracao){float r=max(raio.r,1.002);float seno=max(sin(raio.theta),.0001);float lapse=max(1.0-1.0/r,.001);float tempo=raio.energia/lapse;"
+    "velocidade=vec3(raio.dr,raio.dtheta,raio.dphi);"
+    "aceleracao.x=-(1.0/(2.0*r*r))*lapse*tempo*tempo+raio.dr*raio.dr/(2.0*r*r*lapse)+r*(raio.dtheta*raio.dtheta+seno*seno*raio.dphi*raio.dphi);"
+    "aceleracao.y=-2.0*raio.dr*raio.dtheta/r+sin(raio.theta)*cos(raio.theta)*raio.dphi*raio.dphi;"
+    "aceleracao.z=-2.0*raio.dr*raio.dphi/r-2.0*cos(raio.theta)/seno*raio.dtheta*raio.dphi;}"
+    "Raio avancar(Raio raio,float passo){vec3 velocidade,aceleracao;derivadas(raio,velocidade,aceleracao);Raio meio=raio;"
+    "meio.r+=velocidade.x*passo*.5;meio.theta+=velocidade.y*passo*.5;meio.phi+=velocidade.z*passo*.5;meio.dr+=aceleracao.x*passo*.5;meio.dtheta+=aceleracao.y*passo*.5;meio.dphi+=aceleracao.z*passo*.5;"
+    "derivadas(meio,velocidade,aceleracao);raio.r+=velocidade.x*passo;raio.theta+=velocidade.y*passo;raio.phi+=velocidade.z*passo;raio.dr+=aceleracao.x*passo;raio.dtheta+=aceleracao.y*passo;raio.dphi+=aceleracao.z*passo;"
+    "raio.theta=clamp(raio.theta,.002,3.139);return raio;}"
     "void main(){"
-    "const float M=1.0;const float SPIN=.82*M;const float HORIZON=M+sqrt(M*M-SPIN*SPIN);"
-    "const float ISCO=2.8019*M;const float OBSERVER_RADIUS=30.0*M;"
-    "vec2 screen=(vUv-.5)*vec2(uResolution.x/uResolution.y,1.0);float screenRadius=length(screen);"
-    "float psi=atan(screenRadius,.94);float lapse=sqrt(1.0-2.0*M/OBSERVER_RADIUS);"
-    "float impact=OBSERVER_RADIUS*sin(psi)/lapse;"
-    "float xi=-impact*screen.x/max(screenRadius,.0001);float eta=max(impact*impact-xi*xi,0.0);"
-    "float radius=OBSERVER_RADIUS;float radialSign=-1.0;float orbitAngle=0.0;float dragAngle=0.0;"
-    "bool captured=false;int diskHits=0;vec3 diskColor=vec3(0.0);float stepSize=.18;"
-    "vec3 observerAxis=normalize(vec3(0.0,.18,1.0));vec3 right=vec3(1.0,0.0,0.0);"
-    "vec3 up=normalize(cross(observerAxis,right));"
-    "vec3 transverse=screenRadius>.0001?normalize(right*screen.x+up*screen.y):right;"
-    "vec3 previousPosition=observerAxis*OBSERVER_RADIUS;"
-    "for(int iteration=0;iteration<380;iteration++){"
-    "float delta=radius*radius-2.0*M*radius+SPIN*SPIN;"
-    "float p=radius*radius+SPIN*SPIN-SPIN*xi;"
-    "float radialPotential=p*p-delta*(eta+(xi-SPIN)*(xi-SPIN));"
-    "if(radialPotential<0.0){radialSign=1.0;radialPotential=0.0;}"
-    "float sigma=radius*radius+SPIN*SPIN*.18;"
-    "radius+=radialSign*sqrt(radialPotential)/sigma*stepSize;"
-    "orbitAngle+=impact/max(radius*radius+SPIN*SPIN, HORIZON*HORIZON)*stepSize;"
-    "float area=pow(radius*radius+SPIN*SPIN,2.0)-SPIN*SPIN*max(delta,0.0);"
-    "float frameDragging=2.0*M*SPIN*radius/max(area,.001);dragAngle+=frameDragging*stepSize;"
-    "if(radius<=HORIZON*1.002){captured=true;break;}"
-    "vec3 base=observerAxis*radius*cos(orbitAngle)+transverse*radius*sin(orbitAngle);"
-    "float cd=cos(dragAngle),sd=sin(dragAngle);"
-    "vec3 position=vec3(cd*base.x+sd*base.z,base.y,-sd*base.x+cd*base.z);"
-    "if(diskHits<2&&iteration>2&&previousPosition.y*position.y<=0.0){"
-    "float amount=abs(previousPosition.y)/(abs(previousPosition.y)+abs(position.y)+.00001);"
-    "vec3 crossing=mix(previousPosition,position,amount);float diskRadius=length(crossing.xz);"
-    "if(diskRadius>=ISCO&&diskRadius<=12.0*M){"
-    "float diskAzimuth=atan(crossing.z,crossing.x);float orbitalOmega=1.0/(pow(diskRadius,1.5)+SPIN);"
-    "float ut=(pow(diskRadius,1.5)+SPIN)/sqrt(max(pow(diskRadius,3.0)-3.0*diskRadius*diskRadius+2.0*SPIN*pow(diskRadius,1.5),.001));"
-    "float redshift=clamp(1.0/(ut*(1.0-orbitalOmega*xi)),.08,2.6);"
-    "float temperature=9800.0*pow(ISCO/diskRadius,.75)*pow(max(1.0-sqrt(ISCO/diskRadius),.018),.25);"
-    "float spiral=.68+.32*sin(diskRadius*10.0-diskAzimuth*3.0-uTime*.72);"
-    "float fineRings=.80+.20*sin(diskRadius*29.0+diskAzimuth*8.0);"
-    "float edge=smoothstep(ISCO,ISCO+.34,diskRadius)*(1.0-smoothstep(11.1,12.0,diskRadius));"
-    "float imageWeight=diskHits==0?1.0:.38;"
-    "diskColor+=blackbody(temperature*redshift)*clamp(pow(redshift,3.0),.05,4.8)*spiral*fineRings*edge*.15*imageWeight;"
-    "diskHits++;}}previousPosition=position;"
-    "if(radialSign>0.0&&radius>OBSERVER_RADIUS*1.08)break;"
-    "}"
-    "float skyAngle=atan(screen.y,screen.x)+dragAngle;"
-    "vec2 sky=vec2(cos(skyAngle),sin(skyAngle))*orbitAngle*8.0;"
-    "float background=stars(sky*13.0)+.5*stars(sky*23.0+11.7);"
-    "vec3 color=vec3(.0003,.0006,.002)+background*vec3(.32,.50,1.0);"
-    "if(captured)color=vec3(0.0);if(diskHits>0)color+=diskColor;"
-    "float frameGlow=exp(-abs(radius-HORIZON)*2.0);"
-    "color+=vec3(.65,.09,.006)*frameGlow*.025*float(!captured);"
+    "vec2 screen=(vUv-.5)*2.0;screen.x*=uResolution.x/uResolution.y;"
+    "vec3 observer=uDistance*vec3(sin(uAzimuth)*cos(uElevation),sin(uElevation),cos(uAzimuth)*cos(uElevation));"
+    "vec3 forward=normalize(-observer);vec3 right=normalize(cross(forward,vec3(0.0,1.0,0.0)));vec3 up=normalize(cross(right,forward));"
+    "vec3 direction=normalize(forward+right*screen.x*.58+up*screen.y*.58);Raio raio=criarRaio(observer,direction);"
+    "bool atingiuHorizonte=false;bool atingiuDisco=false;vec3 pontoDisco=vec3(0.0);vec3 anterior=posicao(raio);"
+    "for(int iteracao=0;iteracao<420;iteracao++){if(raio.r<=1.001){atingiuHorizonte=true;break;}"
+    "float passo=.032*clamp(raio.r/4.0,.30,1.35);raio=avancar(raio,passo);vec3 atual=posicao(raio);"
+    "if(anterior.y*atual.y<=0.0){float fracao=abs(anterior.y)/max(abs(anterior.y)+abs(atual.y),.0001);vec3 cruzamento=mix(anterior,atual,fracao);float raioDisco=length(cruzamento.xz);"
+    "if(raioDisco>=1.35&&raioDisco<=3.40){atingiuDisco=true;pontoDisco=cruzamento;break;}}"
+    "anterior=atual;if(raio.r>22.0)break;}if(abs(screen.x)<.007&&abs(screen.y)>.23){atingiuDisco=false;atingiuHorizonte=false;}"
+    "vec3 color=estrelas(direction);float ground=1.0-smoothstep(.10,.34,screen.y);float perspective=1.0/max(.045,.37-screen.y);"
+    "float grid=linhaGrade(vec2(screen.x*perspective*7.0,perspective*1.9))*ground;color+=grid*vec3(.028);"
+    "if(atingiuDisco){float raioDisco=length(pontoDisco.xz);float normalizado=clamp((raioDisco-1.35)/(3.40-1.35),0.0,1.0);"
+    "float angulo=atan(pontoDisco.z,pontoDisco.x);float faixas=.77+.23*sin(angulo*12.0-normalizado*28.0-uTime*1.2);"
+    "vec3 velocidade=normalize(vec3(-pontoDisco.z,0.0,pontoDisco.x));float beta=sqrt(.5/max(raioDisco,1.35));float doppler=clamp(1.0/(sqrt(1.0-beta*beta)*(1.0-dot(velocidade,-direction)*beta)),.55,2.0);"
+    "float calor=1.0-smoothstep(.04,.72,normalizado);vec3 quente=vec3(1.0,.80,.34);vec3 medio=vec3(1.0,.16,.006);vec3 frio=vec3(.36,.001,.0);"
+    "vec3 emissao=mix(frio,medio,smoothstep(.18,.72,1.0-normalizado));emissao=mix(emissao,quente,smoothstep(.55,1.0,calor));color=emissao*faixas*pow(doppler,2.2)*1.15;}"
+    "if(atingiuHorizonte)color=vec3(0.0);if(abs(screen.x)<.010&&abs(screen.y)>.23)color=estrelas(direction)+grid*vec3(.028);"
     "color=1.0-exp(-color);FragColor=vec4(color,1.0);}";
 
 int main(int argc, char **argv)
@@ -84,6 +69,7 @@ int main(int argc, char **argv)
     LumePipeline *pipeline = NULL;
     LumeMaterial *material = NULL;
     float tempo = 0.0f;
+    float azimute = 0.0f, elevacao = 0.55f, distancia = 11.2f;
     int largura = 1280, altura = 720, quadros = 0;
 
     configuracao.title = "Lume3D - Shader black hole";
@@ -110,7 +96,7 @@ int main(int argc, char **argv)
         lume_mesh_create(cena, plano, material, &tela) != LUME_SUCCESS)
         goto falha;
 
-    /* O plano preenche a visão; toda a lente gravitacional é calculada no fragment shader. */
+    /* O plano preenche a visão; o shader faz o traçado geodésico em unidades normalizadas. */
     lume_node_set_position(camera, (LumeVec3){0.0f, 0.0f, 1.0f});
     lume_geometry_release(plano);
     lume_material_release(material);
@@ -123,9 +109,33 @@ int main(int argc, char **argv)
         tempo += delta;
         if (lume_key_was_pressed(aplicativo, LUME_KEY_ESCAPE))
             lume_app_request_close(aplicativo);
+        /* Os controles orbitais mantêm a câmera e o integrador do exemplo de referência sincronizados. */
+        if (lume_key_is_down(aplicativo, LUME_KEY_LEFT))
+            azimute -= delta * 0.72f;
+        if (lume_key_is_down(aplicativo, LUME_KEY_RIGHT))
+            azimute += delta * 0.72f;
+        if (lume_key_is_down(aplicativo, LUME_KEY_UP))
+            elevacao += delta * 0.45f;
+        if (lume_key_is_down(aplicativo, LUME_KEY_DOWN))
+            elevacao -= delta * 0.45f;
+        if (lume_key_is_down(aplicativo, LUME_KEY_W))
+            distancia -= delta * 2.8f;
+        if (lume_key_is_down(aplicativo, LUME_KEY_S))
+            distancia += delta * 2.8f;
+        if (lume_key_was_pressed(aplicativo, LUME_KEY_R))
+        {
+            azimute = 0.0f;
+            elevacao = 0.55f;
+            distancia = 11.2f;
+        }
+        elevacao = fmaxf(0.12f, fminf(elevacao, 1.08f));
+        distancia = fmaxf(6.5f, fminf(distancia, 15.0f));
         lume_app_get_framebuffer_size(aplicativo, &largura, &altura);
         lume_shader_set_float(shader, "uTime", tempo);
         lume_shader_set_vec2(shader, "uResolution", (LumeVec2){(float)largura, (float)altura});
+        lume_shader_set_float(shader, "uAzimuth", azimute);
+        lume_shader_set_float(shader, "uElevation", elevacao);
+        lume_shader_set_float(shader, "uDistance", distancia);
         if (lume_app_render(aplicativo, cena, camera) != LUME_SUCCESS)
             goto falha;
         lume_app_end_frame(aplicativo);

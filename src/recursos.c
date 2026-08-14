@@ -444,7 +444,7 @@ static LumeResult lume_localizar_uniforme(LumeShader *shader, const char *nome, 
 
 LumeResult lume_shader_set_float(LumeShader *shader, const char *nome, float valor)
 {
-    GLint local;
+    GLint local = -1;
     LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
     if (resultado == LUME_SUCCESS)
         glUniform1f(local, valor);
@@ -453,7 +453,7 @@ LumeResult lume_shader_set_float(LumeShader *shader, const char *nome, float val
 
 LumeResult lume_shader_set_vec2(LumeShader *shader, const char *nome, LumeVec2 valor)
 {
-    GLint local;
+    GLint local = -1;
     LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
     if (resultado == LUME_SUCCESS)
         glUniform2f(local, valor.x, valor.y);
@@ -462,7 +462,7 @@ LumeResult lume_shader_set_vec2(LumeShader *shader, const char *nome, LumeVec2 v
 
 LumeResult lume_shader_set_vec3(LumeShader *shader, const char *nome, LumeVec3 valor)
 {
-    GLint local;
+    GLint local = -1;
     LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
     if (resultado == LUME_SUCCESS)
         glUniform3f(local, valor.x, valor.y, valor.z);
@@ -471,7 +471,7 @@ LumeResult lume_shader_set_vec3(LumeShader *shader, const char *nome, LumeVec3 v
 
 LumeResult lume_shader_set_vec4(LumeShader *shader, const char *nome, LumeVec4 valor)
 {
-    GLint local;
+    GLint local = -1;
     LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
     if (resultado == LUME_SUCCESS)
         glUniform4f(local, valor.x, valor.y, valor.z, valor.w);
@@ -480,7 +480,7 @@ LumeResult lume_shader_set_vec4(LumeShader *shader, const char *nome, LumeVec4 v
 
 LumeResult lume_shader_set_mat4(LumeShader *shader, const char *nome, LumeMat4 valor)
 {
-    GLint local;
+    GLint local = -1;
     LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
     if (resultado == LUME_SUCCESS)
         glUniformMatrix4fv(local, 1, GL_FALSE, valor.values);
