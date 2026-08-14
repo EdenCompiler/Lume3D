@@ -113,7 +113,7 @@ target_include_directories(lume3d
 )
 target_link_libraries(lume3d PRIVATE glfw lume_glad)
 target_compile_definitions(lume3d
-    PRIVATE LUME_BUILDING_LIBRARY
+    PRIVATE LUME_BUILDING_LIBRARY _CRT_SECURE_NO_WARNINGS
     PUBLIC $<$<BOOL:${BUILD_SHARED_LIBS}>:LUME_SHARED>
 )
 set_target_properties(lume3d PROPERTIES
@@ -125,6 +125,11 @@ set_target_properties(lume3d PROPERTIES
 
 if(MSVC)
     target_compile_options(lume3d PRIVATE /W4)
+    set_source_files_properties(
+        src/terceiros.c
+        ${tinycthread_SOURCE_DIR}/source/tinycthread.c
+        PROPERTIES COMPILE_OPTIONS "/wd4100;/wd4244;/wd4996"
+    )
     if(LUME_WARNINGS_AS_ERRORS)
         target_compile_options(lume3d PRIVATE /WX)
     endif()
@@ -177,6 +182,9 @@ install(TARGETS lume3d glfw lume_glad
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY doc-en doc-ptbr DESTINATION ${CMAKE_INSTALL_DATADIR}/Lume3D)
+install(DIRECTORY examples/ DESTINATION ${CMAKE_INSTALL_DATADIR}/Lume3D/examples FILES_MATCHING PATTERN "*.c")
+install(FILES README.md CHANGELOG.md LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/Lume3D)
 install(DIRECTORY ${glfw_SOURCE_DIR}/include/GLFW DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gladsources/lume_glad/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(EXPORT Lume3DTargets

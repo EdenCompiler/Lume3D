@@ -776,7 +776,7 @@ void lume_asset_job_release(LumeAssetJob *j)
 }
 static void lume_estado_trabalho(LumeAssetJob *j, LumeAssetJobState e)
 {
-    __atomic_store_n(&j->estado, (int)e, __ATOMIC_RELEASE);
+    lume_atomico_escrever(&j->estado, (int)e);
 }
 static int lume_thread_carregar(void *arg)
 {
@@ -823,7 +823,7 @@ static int lume_thread_carregar(void *arg)
         return 0;
     }
     fclose(f);
-    if (__atomic_load_n(&j->cancelar, __ATOMIC_ACQUIRE))
+    if (lume_atomico_ler(&j->cancelar))
         lume_estado_trabalho(j, LUME_ASSET_JOB_CANCELLED);
     else
     {
@@ -870,7 +870,7 @@ LumeResult lume_model_load_async(LumeApp *a, const char *caminho, const LumeMode
 }
 LumeAssetJobState lume_asset_job_state(const LumeAssetJob *j)
 {
-    return j ? (LumeAssetJobState)__atomic_load_n(&j->estado, __ATOMIC_ACQUIRE) : LUME_ASSET_JOB_FAILED;
+    return j ? (LumeAssetJobState)lume_atomico_ler(&j->estado) : LUME_ASSET_JOB_FAILED;
 }
 float lume_asset_job_progress(const LumeAssetJob *j)
 {
@@ -879,7 +879,7 @@ float lume_asset_job_progress(const LumeAssetJob *j)
 void lume_asset_job_cancel(LumeAssetJob *j)
 {
     if (j)
-        __atomic_store_n(&j->cancelar, 1, __ATOMIC_RELEASE);
+        lume_atomico_escrever(&j->cancelar, 1);
 }
 const LumeError *lume_asset_job_error(const LumeAssetJob *j)
 {
@@ -917,7 +917,7 @@ void lume_processar_trabalhos(LumeApp *a)
         LumeAssetJobState e = lume_asset_job_state(j);
         if (e == LUME_ASSET_JOB_READY_FOR_FINALIZE)
         {
-            if (__atomic_load_n(&j->cancelar, __ATOMIC_ACQUIRE))
+            if (lume_atomico_ler(&j->cancelar))
                 lume_estado_trabalho(j, LUME_ASSET_JOB_CANCELLED);
             else
             {

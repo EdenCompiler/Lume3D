@@ -9,6 +9,12 @@
 
 int main(void)
 {
+    static const char *vertice_passagem =
+        "#version 330 core\nout vec2 vUv;void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);"
+        "vUv=p*.5;gl_Position=vec4(p*2-1,0,1);}";
+    static const char *fragmento_passagem =
+        "#version 330 core\nin vec2 vUv;out vec4 FragColor;uniform sampler2D uColor;"
+        "void main(){FragColor=texture(uColor,vUv);}";
     LumeAppConfig configuracao = lume_app_config_default();
     LumeMaterialConfig material_config = lume_material_config_default(LUME_MATERIAL_PBR);
     LumeApp *aplicativo = NULL;
@@ -19,6 +25,8 @@ int main(void)
     LumeModel *gltf = NULL, *obj = NULL, *nao_suportado = NULL;
     LumeModelInstance *instancia = NULL;
     LumeAnimationPlayer *player = NULL;
+    LumeShader *shader_passagem = NULL;
+    LumePipeline *pipeline_passagem = NULL;
     unsigned char pixel[4] = {0};
     char caminho[1024];
 
@@ -59,6 +67,27 @@ int main(void)
     }
 
     lume_debug_aabb(lume_app_renderer(aplicativo), lume_node_world_bounds(malha), (LumeColor){1, 1, 0, 1});
+    {
+        LumeShaderConfig shader_config = {vertice_passagem, fragmento_passagem, NULL, NULL};
+        LumePipelineConfig pipeline_config = lume_pipeline_config_default();
+        LumePassConfig passagem_hdr = {"Test HDR pass", NULL, LUME_PASS_HDR, false, true};
+        LumePassConfig passagem_ldr = {"Test LDR pass", NULL, LUME_PASS_LDR, false, true};
+        pipeline_config.depth_test = false;
+        pipeline_config.depth_write = false;
+        pipeline_config.cull_back_faces = false;
+        if (lume_shader_create(aplicativo, &shader_config, &shader_passagem) != LUME_SUCCESS)
+            goto falha;
+        pipeline_config.shader = shader_passagem;
+        if (lume_pipeline_create(aplicativo, &pipeline_config, &pipeline_passagem) != LUME_SUCCESS)
+            goto falha;
+        passagem_hdr.pipeline = pipeline_passagem;
+        passagem_ldr.pipeline = pipeline_passagem;
+        if (lume_renderer_add_pass(lume_app_renderer(aplicativo), &passagem_hdr, NULL) != LUME_SUCCESS ||
+            lume_renderer_add_pass(lume_app_renderer(aplicativo), &passagem_ldr, NULL) != LUME_SUCCESS)
+            goto falha;
+        lume_shader_release(shader_passagem);
+        lume_pipeline_release(pipeline_passagem);
+    }
     if (lume_app_render(aplicativo, cena, camera) != LUME_SUCCESS)
         goto falha;
     glFinish();

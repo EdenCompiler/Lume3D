@@ -122,6 +122,22 @@ int lume_referencia_liberar(LumeReferencia *r)
     return __atomic_sub_fetch(&r->contagem, 1, __ATOMIC_ACQ_REL);
 #endif
 }
+int lume_atomico_ler(const volatile int *valor)
+{
+#if defined(_WIN32)
+    return (int)InterlockedCompareExchange((volatile LONG *)valor, 0, 0);
+#else
+    return __atomic_load_n(valor, __ATOMIC_ACQUIRE);
+#endif
+}
+void lume_atomico_escrever(volatile int *destino, int valor)
+{
+#if defined(_WIN32)
+    InterlockedExchange((volatile LONG *)destino, (LONG)valor);
+#else
+    __atomic_store_n(destino, valor, __ATOMIC_RELEASE);
+#endif
+}
 void lume_registrar_recurso(LumeApp *a, void *r)
 {
     if (a)
@@ -271,6 +287,8 @@ void lume_app_destroy(LumeApp *a)
     lume_assets_clear_cache(a);
     while (a->quantidade_cenas > 0)
         lume_scene_destroy(a->cenas[a->quantidade_cenas - 1]);
+    /* O renderizador libera passes e ambientes antes da auditoria de referências do usuário. */
+    lume_destruir_renderizador(a);
     while (a->quantidade_recursos > 0)
     {
         LumeReferencia *r = a->recursos[a->quantidade_recursos - 1];
@@ -287,7 +305,6 @@ void lume_app_destroy(LumeApp *a)
     free(a->cache_modelos);
     free(a->cenas);
     free(a->recursos);
-    lume_destruir_renderizador(a);
     glfwDestroyWindow(a->janela);
     free(a);
     --lume_contagem_glfw;

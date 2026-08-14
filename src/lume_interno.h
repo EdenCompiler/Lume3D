@@ -3,6 +3,13 @@
 
 #include <lume/lume.h>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
@@ -181,8 +188,14 @@ struct LumeRenderer
     LumeApp *aplicativo;
     LumeRendererConfig configuracao;
     GLuint programa_padrao;
-    GLuint programa_tom, programa_debug, vao_tela, vao_debug, vbo_debug;
-    GLuint framebuffer_hdr, textura_hdr, profundidade_hdr;
+    GLuint programa_tom, programa_copia, programa_debug, vao_tela, vao_debug, vbo_debug;
+    GLuint programa_sombra;
+    GLuint framebuffers_sombra_direcional[3], texturas_sombra_direcional[3];
+    GLuint framebuffers_sombra_spot[4], texturas_sombra_spot[4];
+    LumeMat4 matrizes_sombra_direcional[3], matrizes_sombra_spot[4];
+    LumeVec3 divisoes_sombra;
+    int quantidade_sombras_spot;
+    GLuint framebuffer_hdr, textura_hdr, framebuffer_ping, textura_ping, profundidade_hdr;
     int largura_hdr, altura_hdr;
     LumeEnvironment *ambiente;
     LumePassagemInterna *passagens;
@@ -321,6 +334,8 @@ void lume_remover_ponteiro(void **itens, size_t *quantidade, const void *item);
 char *lume_copiar_texto(const char *texto);
 int lume_referencia_reter(LumeReferencia *referencia);
 int lume_referencia_liberar(LumeReferencia *referencia);
+int lume_atomico_ler(const volatile int *valor);
+void lume_atomico_escrever(volatile int *destino, int valor);
 void lume_registrar_recurso(LumeApp *aplicativo, void *recurso);
 void lume_desregistrar_recurso(LumeApp *aplicativo, void *recurso);
 

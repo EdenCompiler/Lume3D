@@ -1,42 +1,75 @@
 #include <lume/lume.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define OCEANO_COLUNAS 180u
-#define OCEANO_LINHAS 120u
-#define OCEANO_LARGURA 24.0f
-#define OCEANO_PROFUNDIDADE 16.0f
+#define OCEANO_COLUNAS 320u
+#define OCEANO_LINHAS 220u
+#define OCEANO_LARGURA 240.0f
+#define OCEANO_PROFUNDIDADE 200.0f
 
 static const char *shader_vertice_oceano =
     "#version 330 core\n"
     "layout(location=0) in vec3 aPosition;"
     "uniform mat4 uModel;uniform mat4 uView;uniform mat4 uProjection;uniform float uTime;"
-    "out vec3 vWorld;out float vHeight;"
-    "float wave(vec2 p,vec2 direction,float frequency,float speed,float amplitude){"
-    "return sin(dot(p,normalize(direction))*frequency+uTime*speed)*amplitude;}"
+    "out vec3 vWorld;out float vHeight;out float vCrest;"
+    "const float PI=3.14159265359;"
+    "float crestEnergy=0.0;"
+    "vec3 gerstner(vec3 p,vec2 direction,float steepness,float wavelength,float speed){"
+    "vec2 d=normalize(direction);float k=2.0*PI/wavelength;float c=sqrt(9.8/k)*speed;"
+    "float phase=k*(dot(d,p.xz)-c*uTime);float amplitude=steepness/k;"
+    "crestEnergy+=smoothstep(.58,.98,sin(phase))*steepness;"
+    "p.x+=d.x*amplitude*cos(phase);p.z+=d.y*amplitude*cos(phase);p.y+=amplitude*sin(phase);return p;}"
     "void main(){vec3 p=aPosition;"
-    "p.y+=wave(p.xz,vec2(1.0,.25),.72,1.45,.42);"
-    "p.y+=wave(p.xz,vec2(-.35,1.0),1.18,1.05,.22);"
-    "p.y+=wave(p.xz,vec2(.7,-.65),2.35,2.2,.075);"
-    "p.y+=sin((p.x+p.z)*3.1-uTime*2.8)*.025;"
-    "vHeight=p.y;vWorld=(uModel*vec4(p,1.0)).xyz;gl_Position=uProjection*uView*vec4(vWorld,1.0);}";
+    "p=gerstner(p,vec2(.16,-1.0),.72,8.6,.82);"
+    "p=gerstner(p,vec2(-.28,-1.0),.46,5.2,.94);"
+    "p=gerstner(p,vec2(.72,-.62),.25,2.35,1.12);"
+    "p=gerstner(p,vec2(-.82,-.34),.13,1.05,1.34);"
+    "vHeight=p.y;vCrest=crestEnergy;vWorld=(uModel*vec4(p,1.0)).xyz;"
+    "gl_Position=uProjection*uView*vec4(vWorld,1.0);}";
 
 static const char *shader_fragmento_oceano =
     "#version 330 core\n"
-    "in vec3 vWorld;in float vHeight;out vec4 FragColor;"
+    "in vec3 vWorld;in float vHeight;in float vCrest;out vec4 FragColor;"
     "uniform vec3 uCamera;uniform vec3 uSunDirection;uniform vec3 uDeepColor;uniform vec3 uShallowColor;"
+    "float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}"
+    "float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);"
+    "return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1)),f.x),f.y);}"
     "void main(){vec3 dx=dFdx(vWorld),dy=dFdy(vWorld);vec3 n=normalize(cross(dx,dy));if(n.y<0.0)n=-n;"
     "vec3 viewDirection=normalize(uCamera-vWorld);vec3 lightDirection=normalize(-uSunDirection);"
-    "float fresnel=pow(1.0-max(dot(n,viewDirection),0.0),4.0);"
+    "float fresnel=.04+.96*pow(1.0-max(dot(n,viewDirection),0.0),5.0);"
     "float diffuse=max(dot(n,lightDirection),0.0);"
-    "float sparkle=pow(max(dot(reflect(-lightDirection,n),viewDirection),0.0),180.0);"
-    "float depthMix=smoothstep(-.55,.45,vHeight);vec3 water=mix(uDeepColor,uShallowColor,depthMix);"
-    "vec3 sky=mix(vec3(.04,.16,.30),vec3(.42,.72,.95),max(n.y,0.0));"
-    "float foam=smoothstep(.42,.62,vHeight)*(0.55+0.45*sin(vWorld.x*7.0+vWorld.z*5.0));"
-    "vec3 color=water*(.34+.66*diffuse)+sky*fresnel*.72+vec3(1.0,.88,.62)*sparkle*2.8;"
-    "color=mix(color,vec3(.82,.94,1.0),clamp(foam,0.0,1.0));FragColor=vec4(color,1.0);}";
+    "float reflection=max(dot(reflect(-lightDirection,n),viewDirection),0.0);"
+    "float sparkle=pow(reflection,190.0)*3.4+pow(reflection,24.0)*.32;"
+    "float depthMix=smoothstep(-.72,.62,vHeight);vec3 water=mix(uDeepColor,uShallowColor,depthMix);"
+    "vec3 sky=mix(vec3(.10,.24,.42),vec3(.72,.82,.89),clamp(n.y*.9+.1,0.0,1.0));"
+    "float slope=1.0-n.y;float breakup=noise(vWorld.xz*1.45)+.45*noise(vWorld.xz*4.2);"
+    "float foamBand=smoothstep(.30,.66,vCrest+slope*.52);"
+    "float foam=foamBand*smoothstep(.42,.82,breakup+vCrest*.24);"
+    "vec3 color=water*(.30+.70*diffuse)+sky*fresnel*.82+vec3(1.0,.83,.62)*sparkle;"
+    "color=mix(color,vec3(.88,.95,1.0),clamp(foam,0.0,1.0));FragColor=vec4(color,1.0);}";
+
+static const char *shader_vertice_ceu =
+    "#version 330 core\nlayout(location=0)in vec3 aPosition;uniform mat4 uView,uProjection;out vec3 vDirection;"
+    "void main(){vDirection=aPosition;mat4 viewWithoutTranslation=mat4(mat3(uView));"
+    "vec4 p=uProjection*viewWithoutTranslation*vec4(aPosition*80.0,1.0);gl_Position=vec4(p.xy,p.w*.9999,p.w);}";
+
+static const char *shader_fragmento_ceu =
+    "#version 330 core\nin vec3 vDirection;out vec4 FragColor;uniform float uTime;uniform vec3 uSunDirection;"
+    "float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}"
+    "float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);"
+    "return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1)),f.x),f.y);}"
+    "void main(){vec3 d=normalize(vDirection);float horizon=pow(1.0-abs(d.y),3.0);"
+    "vec3 zenith=vec3(.19,.38,.58),low=vec3(.83,.73,.69);vec3 color=mix(low,zenith,clamp(d.y*1.7,0.0,1.0));"
+    "vec2 cloudUv=d.xz/max(d.y+.32,.08)*.42+vec2(uTime*.002,0.0);"
+    "float clouds=smoothstep(.50,.70,noise(cloudUv)+.48*noise(cloudUv*2.7));"
+    "color=mix(color,vec3(.90,.91,.92),clouds*clamp(d.y*3.0,0.0,1.0)*.72);"
+    "vec3 sunDirection=normalize(-uSunDirection);float sunAmount=max(dot(d,sunDirection),0.0);"
+    "float sun=pow(sunAmount,1100.0);float glow=pow(sunAmount,18.0);"
+    "color+=vec3(1.0,.72,.45)*horizon*.18+vec3(1.0,.78,.50)*(sun*2.4+glow*.20);"
+    "FragColor=vec4(color,1.0);}";
 
 static LumeResult criar_superficie_oceano(LumeApp *aplicativo, LumeGeometry **saida)
 {
@@ -110,50 +143,72 @@ int main(int argc, char **argv)
 {
     bool smoke = argc > 1 && strcmp(argv[1], "--smoke") == 0;
     LumeAppConfig configuracao = lume_app_config_default();
+    LumePerspectiveCameraConfig camera_config = lume_perspective_camera_config_default();
     LumeShaderConfig shader_config = {shader_vertice_oceano, shader_fragmento_oceano, NULL, NULL};
+    LumeShaderConfig shader_ceu_config = {shader_vertice_ceu, shader_fragmento_ceu, NULL, NULL};
     LumePipelineConfig pipeline_config = lume_pipeline_config_default();
     LumeMaterialConfig material_config = lume_material_config_default(LUME_MATERIAL_CUSTOM);
     LumeApp *aplicativo = NULL;
     LumeScene *cena = NULL;
-    LumeNode *camera = NULL, *oceano = NULL;
-    LumeGeometry *superficie = NULL;
-    LumeShader *shader = NULL;
-    LumePipeline *pipeline = NULL;
-    LumeMaterial *material = NULL;
+    LumeNode *camera = NULL, *oceano = NULL, *ceu = NULL;
+    LumeGeometry *superficie = NULL, *esfera_ceu = NULL;
+    LumeShader *shader = NULL, *shader_ceu = NULL;
+    LumePipeline *pipeline = NULL, *pipeline_ceu = NULL;
+    LumeMaterial *material = NULL, *material_ceu = NULL;
     float tempo = 0.0f;
+    float camera_x = 0.0f, camera_z = 32.0f;
     int quadros = 0;
 
     configuracao.title = "Lume3D - Shader ocean waves";
     configuracao.visible = !smoke;
     configuracao.vsync = !smoke;
-    configuracao.clear_color = (LumeColor){0.015f, 0.08f, 0.16f, 1.0f};
+    configuracao.clear_color = (LumeColor){0.34f, 0.48f, 0.61f, 1.0f};
+    camera_config.field_of_view_radians = 1.15f;
+    camera_config.near_plane = 0.05f;
+    camera_config.far_plane = 500.0f;
     pipeline_config.shader = shader;
     pipeline_config.cull_back_faces = false;
 
     if (lume_app_create(&configuracao, &aplicativo) != LUME_SUCCESS ||
         lume_scene_create(aplicativo, &cena) != LUME_SUCCESS ||
-        lume_camera_create_perspective(cena, NULL, &camera) != LUME_SUCCESS ||
+        lume_camera_create_perspective(cena, &camera_config, &camera) != LUME_SUCCESS ||
         criar_superficie_oceano(aplicativo, &superficie) != LUME_SUCCESS ||
-        lume_shader_create(aplicativo, &shader_config, &shader) != LUME_SUCCESS)
+        lume_geometry_create_sphere(aplicativo, 1.0f, 48, 24, &esfera_ceu) != LUME_SUCCESS ||
+        lume_shader_create(aplicativo, &shader_config, &shader) != LUME_SUCCESS ||
+        lume_shader_create(aplicativo, &shader_ceu_config, &shader_ceu) != LUME_SUCCESS)
         goto falha;
     pipeline_config.shader = shader;
     if (lume_pipeline_create(aplicativo, &pipeline_config, &pipeline) != LUME_SUCCESS)
+        goto falha;
+    pipeline_config.shader = shader_ceu;
+    pipeline_config.cull_back_faces = false;
+    if (lume_pipeline_create(aplicativo, &pipeline_config, &pipeline_ceu) != LUME_SUCCESS)
         goto falha;
     material_config.custom_pipeline = pipeline;
     material_config.double_sided = true;
     if (lume_material_create(aplicativo, &material_config, &material) != LUME_SUCCESS ||
         lume_mesh_create(cena, superficie, material, &oceano) != LUME_SUCCESS)
         goto falha;
+    material_config.custom_pipeline = pipeline_ceu;
+    if (lume_material_create(aplicativo, &material_config, &material_ceu) != LUME_SUCCESS ||
+        lume_mesh_create(cena, esfera_ceu, material_ceu, &ceu) != LUME_SUCCESS)
+        goto falha;
 
-    lume_shader_set_vec3(shader, "uSunDirection", (LumeVec3){-0.35f, -1.0f, -0.2f});
-    lume_shader_set_vec3(shader, "uDeepColor", (LumeVec3){0.005f, 0.055f, 0.16f});
-    lume_shader_set_vec3(shader, "uShallowColor", (LumeVec3){0.01f, 0.42f, 0.62f});
+    lume_shader_set_vec3(shader, "uSunDirection", (LumeVec3){-0.28f, -0.18f, 0.94f});
+    lume_shader_set_vec3(shader_ceu, "uSunDirection", (LumeVec3){-0.28f, -0.18f, 0.94f});
+    lume_shader_set_vec3(shader, "uDeepColor", (LumeVec3){0.006f, 0.045f, 0.15f});
+    lume_shader_set_vec3(shader, "uShallowColor", (LumeVec3){0.01f, 0.52f, 0.68f});
     lume_geometry_release(superficie);
+    lume_geometry_release(esfera_ceu);
     lume_material_release(material);
+    lume_material_release(material_ceu);
     lume_pipeline_release(pipeline);
+    lume_pipeline_release(pipeline_ceu);
     lume_shader_release(shader);
-    lume_node_set_position(camera, (LumeVec3){0.0f, 5.2f, 9.5f});
-    lume_node_look_at(camera, (LumeVec3){0.0f, -0.15f, -1.0f});
+    lume_shader_release(shader_ceu);
+    /* A câmera fica quase na superfície, como a tomada aberta usada como referência. */
+    lume_node_set_position(camera, (LumeVec3){camera_x, 1.18f, camera_z});
+    lume_node_look_at(camera, (LumeVec3){camera_x, 0.58f, camera_z - 80.0f});
 
     while (!lume_app_should_close(aplicativo))
     {
@@ -161,7 +216,21 @@ int main(int argc, char **argv)
         tempo += delta;
         if (lume_key_was_pressed(aplicativo, LUME_KEY_ESCAPE))
             lume_app_request_close(aplicativo);
+        /* WASD permite explorar o plano aberto sem alterar o enquadramento cinematográfico. */
+        if (lume_key_is_down(aplicativo, LUME_KEY_A))
+            camera_x -= 8.0f * delta;
+        if (lume_key_is_down(aplicativo, LUME_KEY_D))
+            camera_x += 8.0f * delta;
+        if (lume_key_is_down(aplicativo, LUME_KEY_W))
+            camera_z -= 8.0f * delta;
+        if (lume_key_is_down(aplicativo, LUME_KEY_S))
+            camera_z += 8.0f * delta;
+        lume_node_set_position(camera,
+                               (LumeVec3){camera_x, 1.18f + sinf(tempo * 0.42f) * 0.035f, camera_z});
+        lume_node_look_at(camera,
+                          (LumeVec3){camera_x + sinf(tempo * 0.08f) * 0.7f, 0.58f, camera_z - 80.0f});
         lume_shader_set_float(shader, "uTime", tempo);
+        lume_shader_set_float(shader_ceu, "uTime", tempo);
         if (lume_app_render(aplicativo, cena, camera) != LUME_SUCCESS)
             goto falha;
         lume_app_end_frame(aplicativo);
