@@ -4,63 +4,81 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void lume_calcular_normais(LumeVertice *vertices, size_t quantidade_vertices, const uint32_t *indices,
-                                  size_t quantidade_indices)
+static void lume_destruir_geometria(void *recurso)
 {
-    size_t indice;
-    for (indice = 0; indice < quantidade_vertices; ++indice)
-    {
-        vertices[indice].normal[0] = 0.0f;
-        vertices[indice].normal[1] = 0.0f;
-        vertices[indice].normal[2] = 0.0f;
-    }
+    LumeGeometry *g = recurso;
+    LumeApp *a = g->referencia.aplicativo;
+    lume_desregistrar_recurso(a, g);
+    if (g->vao)
+        glDeleteVertexArrays(1, &g->vao);
+    if (g->vbo)
+        glDeleteBuffers(1, &g->vbo);
+    if (g->ebo)
+        glDeleteBuffers(1, &g->ebo);
+    free(g->vertices);
+    free(g->indices);
+    free(g);
+}
+void lume_geometry_retain(LumeGeometry *g)
+{
+    if (g)
+        lume_referencia_reter(&g->referencia);
+}
+void lume_geometry_release(LumeGeometry *g)
+{
+    if (g && lume_referencia_liberar(&g->referencia) == 0)
+        lume_destruir_geometria(g);
+}
+LumeAabb lume_geometry_bounds(const LumeGeometry *g)
+{
+    return g ? g->limites : lume_aabb_empty();
+}
 
-    for (indice = 0; indice + 2 < quantidade_indices; indice += 3)
+static void lume_calcular_normais(LumeVertice *v, size_t q, const uint32_t *ind, size_t qi)
+{
+    size_t i;
+    for (i = 0; i < q; ++i)
+        v[i].normal[0] = v[i].normal[1] = v[i].normal[2] = 0;
+    for (i = 0; i + 2 < qi; i += 3)
     {
-        uint32_t ia = indices[indice];
-        uint32_t ib = indices[indice + 1];
-        uint32_t ic = indices[indice + 2];
-        LumeVec3 a = {vertices[ia].posicao[0], vertices[ia].posicao[1], vertices[ia].posicao[2]};
-        LumeVec3 b = {vertices[ib].posicao[0], vertices[ib].posicao[1], vertices[ib].posicao[2]};
-        LumeVec3 c = {vertices[ic].posicao[0], vertices[ic].posicao[1], vertices[ic].posicao[2]};
-        LumeVec3 normal = lume_vetor3_produto_vetorial(lume_vetor3_subtrair(b, a), lume_vetor3_subtrair(c, a));
-        uint32_t vertices_triangulo[3] = {ia, ib, ic};
-        int vertice;
-        for (vertice = 0; vertice < 3; ++vertice)
+        uint32_t ia = ind[i], ib = ind[i + 1], ic = ind[i + 2];
+        LumeVec3 a = {v[ia].posicao[0], v[ia].posicao[1], v[ia].posicao[2]},
+                 b = {v[ib].posicao[0], v[ib].posicao[1], v[ib].posicao[2]},
+                 c = {v[ic].posicao[0], v[ic].posicao[1], v[ic].posicao[2]};
+        LumeVec3 n = lume_vec3_cross(lume_vec3_subtract(b, a), lume_vec3_subtract(c, a));
+        uint32_t t[3] = {ia, ib, ic};
+        int k;
+        for (k = 0; k < 3; ++k)
         {
-            vertices[vertices_triangulo[vertice]].normal[0] += normal.x;
-            vertices[vertices_triangulo[vertice]].normal[1] += normal.y;
-            vertices[vertices_triangulo[vertice]].normal[2] += normal.z;
+            v[t[k]].normal[0] += n.x;
+            v[t[k]].normal[1] += n.y;
+            v[t[k]].normal[2] += n.z;
         }
     }
-
-    for (indice = 0; indice < quantidade_vertices; ++indice)
+    for (i = 0; i < q; ++i)
     {
-        LumeVec3 normal = lume_vetor3_normalizar(
-            (LumeVec3){vertices[indice].normal[0], vertices[indice].normal[1], vertices[indice].normal[2]});
-        vertices[indice].normal[0] = normal.x;
-        vertices[indice].normal[1] = normal.y;
-        vertices[indice].normal[2] = normal.z;
+        LumeVec3 n = lume_vec3_normalize((LumeVec3){v[i].normal[0], v[i].normal[1], v[i].normal[2]});
+        v[i].normal[0] = n.x;
+        v[i].normal[1] = n.y;
+        v[i].normal[2] = n.z;
     }
 }
 
-bool lume_enviar_geometria_gpu(LumeGeometry *geometria)
+bool lume_enviar_geometria_gpu(LumeGeometry *g)
 {
-    if (!geometria || geometria->enviado_gpu)
-    {
-        return geometria != NULL;
-    }
-    glfwMakeContextCurrent(geometria->aplicativo->janela);
-    glGenVertexArrays(1, &geometria->vao);
-    glGenBuffers(1, &geometria->vbo);
-    glGenBuffers(1, &geometria->ebo);
-    glBindVertexArray(geometria->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, geometria->vbo);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(geometria->quantidade_vertices * sizeof(LumeVertice)),
-                 geometria->vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometria->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)(geometria->quantidade_indices * sizeof(uint32_t)),
-                 geometria->indices, GL_STATIC_DRAW);
+    if (!g || g->enviado_gpu)
+        return g != NULL;
+    glfwMakeContextCurrent(g->referencia.aplicativo->janela);
+    glGenVertexArrays(1, &g->vao);
+    glGenBuffers(1, &g->vbo);
+    glGenBuffers(1, &g->ebo);
+    glBindVertexArray(g->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, g->vbo);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(g->quantidade_vertices * sizeof(LumeVertice)), g->vertices,
+                 GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)(g->quantidade_indices * sizeof(uint32_t)), g->indices,
+                 GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(LumeVertice), (void *)offsetof(LumeVertice, posicao));
     glEnableVertexAttribArray(1);
@@ -68,227 +86,193 @@ bool lume_enviar_geometria_gpu(LumeGeometry *geometria)
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(LumeVertice), (void *)offsetof(LumeVertice, uv));
     glBindVertexArray(0);
-    geometria->enviado_gpu = true;
+    g->enviado_gpu = true;
     return true;
 }
 
-LumeGeometry *lume_geometry_create_custom(LumeApp *aplicativo, const LumeGeometryData *dados)
+LumeResult lume_geometry_create(LumeApp *a, const LumeGeometryData *d, LumeGeometry **saida)
 {
-    LumeGeometry *geometria;
-    size_t indice;
-    bool possui_normais;
-
-    if (!aplicativo || !dados || !dados->positions || dados->vertex_count == 0)
+    LumeGeometry *g;
+    size_t i;
+    bool normais;
+    if (!saida)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "geometry.create", NULL, 0, 0,
+                                 "out_geometry must not be NULL.");
+    *saida = NULL;
+    if (!a || !d || !d->positions || !d->vertex_count)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "geometry.create", NULL, 0, 0,
+                                 "Geometry requires an application and at least one vertex position.");
+    if (d->vertex_count > UINT32_MAX)
+        return lume_definir_erro(LUME_ERROR_UNSUPPORTED, "geometry.create", NULL, 0, 0,
+                                 "Geometry exceeds the 32-bit vertex limit.");
+    if ((d->index_count && !d->indices) || (d->index_count ? d->index_count : d->vertex_count) % 3)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "geometry.create", NULL, 0, 0,
+                                 "Triangle index or vertex count must be a multiple of three.");
+    g = calloc(1, sizeof(*g));
+    if (!g)
+        return lume_definir_erro(LUME_ERROR_OUT_OF_MEMORY, "geometry.create", NULL, 0, 0,
+                                 "Out of memory while creating geometry.");
+    g->referencia = (LumeReferencia){1, a, lume_destruir_geometria, "geometry"};
+    g->quantidade_vertices = d->vertex_count;
+    g->quantidade_indices = d->index_count ? d->index_count : d->vertex_count;
+    g->vertices = calloc(g->quantidade_vertices, sizeof(*g->vertices));
+    g->indices = malloc(g->quantidade_indices * sizeof(*g->indices));
+    g->limites = lume_aabb_empty();
+    if (!g->vertices || !g->indices)
     {
-        lume_definir_erro("Custom geometry requires an application and at least one vertex position.");
-        return NULL;
+        lume_destruir_geometria(g);
+        return lume_definir_erro(LUME_ERROR_OUT_OF_MEMORY, "geometry.create", NULL, 0, 0,
+                                 "Out of memory while copying geometry data.");
     }
-    if (dados->vertex_count > UINT32_MAX)
+    normais = d->normals != NULL;
+    for (i = 0; i < g->quantidade_vertices; ++i)
     {
-        lume_definir_erro("Custom geometry exceeds the 32-bit vertex limit.");
-        return NULL;
+        LumeVertice *v = &g->vertices[i];
+        memcpy(v->posicao, &d->positions[i * 3], 3 * sizeof(float));
+        g->limites = lume_aabb_expand_point(g->limites, (LumeVec3){v->posicao[0], v->posicao[1], v->posicao[2]});
+        if (normais)
+            memcpy(v->normal, &d->normals[i * 3], 3 * sizeof(float));
+        if (d->texture_coordinates)
+            memcpy(v->uv, &d->texture_coordinates[i * 2], 2 * sizeof(float));
+        if (d->tangents)
+            memcpy(v->tangente, &d->tangents[i * 4], 4 * sizeof(float));
+        else
+            v->tangente[3] = 1;
+        if (d->colors)
+            memcpy(v->cor, &d->colors[i * 4], 4 * sizeof(float));
+        else
+            v->cor[0] = v->cor[1] = v->cor[2] = v->cor[3] = 1;
+        if (d->joints)
+            memcpy(v->juntas, &d->joints[i * 4], 4 * sizeof(uint16_t));
+        if (d->joint_weights)
+            memcpy(v->pesos, &d->joint_weights[i * 4], 4 * sizeof(float));
     }
-    if (dados->index_count > 0 && !dados->indices)
+    for (i = 0; i < g->quantidade_indices; ++i)
     {
-        lume_definir_erro("Custom geometry index data is missing.");
-        return NULL;
-    }
-    if (dados->index_count > 0 && dados->index_count % 3 != 0)
-    {
-        lume_definir_erro("Custom geometry index count must be a multiple of three.");
-        return NULL;
-    }
-
-    geometria = calloc(1, sizeof(*geometria));
-    if (!geometria)
-    {
-        lume_definir_erro("Out of memory while creating geometry.");
-        return NULL;
-    }
-    geometria->aplicativo = aplicativo;
-    geometria->quantidade_vertices = dados->vertex_count;
-    geometria->quantidade_indices = dados->index_count > 0 ? dados->index_count : dados->vertex_count;
-    if (geometria->quantidade_indices % 3 != 0)
-    {
-        lume_definir_erro("Non-indexed custom geometry vertex count must be a multiple of three.");
-        free(geometria);
-        return NULL;
-    }
-    geometria->vertices = calloc(geometria->quantidade_vertices, sizeof(LumeVertice));
-    geometria->indices = malloc(geometria->quantidade_indices * sizeof(uint32_t));
-    if (!geometria->vertices || !geometria->indices)
-    {
-        lume_definir_erro("Out of memory while copying geometry data.");
-        free(geometria->vertices);
-        free(geometria->indices);
-        free(geometria);
-        return NULL;
-    }
-
-    possui_normais = dados->normals != NULL;
-    for (indice = 0; indice < geometria->quantidade_vertices; ++indice)
-    {
-        memcpy(geometria->vertices[indice].posicao, &dados->positions[indice * 3], 3 * sizeof(float));
-        if (possui_normais)
+        uint32_t x = d->indices ? d->indices[i] : (uint32_t)i;
+        if (x >= g->quantidade_vertices)
         {
-            memcpy(geometria->vertices[indice].normal, &dados->normals[indice * 3], 3 * sizeof(float));
+            lume_destruir_geometria(g);
+            return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "geometry.create", NULL, 0, 0,
+                                     "Geometry index %u is outside the vertex range.", x);
         }
-        if (dados->texture_coordinates)
-        {
-            memcpy(geometria->vertices[indice].uv, &dados->texture_coordinates[indice * 2], 2 * sizeof(float));
-        }
+        g->indices[i] = x;
     }
-    for (indice = 0; indice < geometria->quantidade_indices; ++indice)
-    {
-        uint32_t valor = dados->indices ? dados->indices[indice] : (uint32_t)indice;
-        if (valor >= geometria->quantidade_vertices)
-        {
-            lume_definir_erro("Geometry index %u is outside the vertex range.", valor);
-            free(geometria->vertices);
-            free(geometria->indices);
-            free(geometria);
-            return NULL;
-        }
-        geometria->indices[indice] = valor;
-    }
-    if (!possui_normais)
-    {
-        lume_calcular_normais(geometria->vertices, geometria->quantidade_vertices, geometria->indices,
-                              geometria->quantidade_indices);
-    }
-
-    if (!lume_adicionar_ponteiro((void ***)&aplicativo->geometrias, &aplicativo->quantidade_geometrias,
-                                 &aplicativo->capacidade_geometrias, geometria))
-    {
-        free(geometria->vertices);
-        free(geometria->indices);
-        free(geometria);
-        return NULL;
-    }
-    return geometria;
+    if (!normais)
+        lume_calcular_normais(g->vertices, g->quantidade_vertices, g->indices, g->quantidade_indices);
+    lume_registrar_recurso(a, g);
+    *saida = g;
+    return LUME_SUCCESS;
 }
 
-LumeGeometry *lume_geometry_create_plane(LumeApp *aplicativo, float largura, float altura)
+LumeResult lume_geometry_create_plane(LumeApp *a, float l, float h, LumeGeometry **s)
 {
-    float x = largura * 0.5f;
-    float y = altura * 0.5f;
-    const float posicoes[] = {-x, -y, 0, x, -y, 0, x, y, 0, -x, y, 0};
-    const float normais[] = {0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1};
-    const float uvs[] = {0, 0, 1, 0, 1, 1, 0, 1};
-    const uint32_t indices[] = {0, 1, 2, 0, 2, 3};
-    LumeGeometryData dados = {posicoes, normais, uvs, 4, indices, 6};
-    if (largura <= 0.0f || altura <= 0.0f)
-    {
-        lume_definir_erro("Plane width and height must be greater than zero.");
-        return NULL;
-    }
-    return lume_geometry_create_custom(aplicativo, &dados);
+    float x = l * .5f, y = h * .5f;
+    const float p[] = {-x, -y, 0, x, -y, 0, x, y, 0, -x, y, 0}, n[] = {0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1},
+                uv[] = {0, 0, 1, 0, 1, 1, 0, 1};
+    const uint32_t i[] = {0, 1, 2, 0, 2, 3};
+    LumeGeometryData d = {0};
+    if (l <= 0 || h <= 0)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "geometry.plane", NULL, 0, 0,
+                                 "Plane width and height must be greater than zero.");
+    d.positions = p;
+    d.normals = n;
+    d.texture_coordinates = uv;
+    d.vertex_count = 4;
+    d.indices = i;
+    d.index_count = 6;
+    return lume_geometry_create(a, &d, s);
 }
-
-LumeGeometry *lume_geometry_create_box(LumeApp *aplicativo, float largura, float altura, float profundidade)
+LumeResult lume_geometry_create_box(LumeApp *a, float l, float h, float pr, LumeGeometry **s)
 {
-    float x = largura * 0.5f;
-    float y = altura * 0.5f;
-    float z = profundidade * 0.5f;
-    const float posicoes[] = {-x, -y, z,  x, -y, z,  x,  y,  z,  -x, y,  z, x,  -y, -z, -x, -y, -z,
-                              -x, y,  -z, x, y,  -z, -x, y,  z,  x,  y,  z, x,  y,  -z, -x, y,  -z,
-                              -x, -y, -z, x, -y, -z, x,  -y, z,  -x, -y, z, x,  -y, z,  x,  -y, -z,
-                              x,  y,  -z, x, y,  z,  -x, -y, -z, -x, -y, z, -x, y,  z,  -x, y,  -z};
-    const float normais[] = {0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,  0,  -1, 0,  0,  -1, 0,  0,  -1, 0,  0,  -1,
-                             0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,  -1, 0,  0,  -1, 0,  0,  -1, 0,  0,  -1, 0,
-                             1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0,  0,  -1, 0,  0,  -1, 0,  0,  -1, 0,  0};
-    const float uvs[] = {0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1,
-                         0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1};
-    const uint32_t indices[] = {0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,  8,  9,  10, 8,  10, 11,
-                                12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
-    LumeGeometryData dados = {posicoes, normais, uvs, 24, indices, 36};
-    if (largura <= 0.0f || altura <= 0.0f || profundidade <= 0.0f)
-    {
-        lume_definir_erro("Box dimensions must be greater than zero.");
-        return NULL;
-    }
-    return lume_geometry_create_custom(aplicativo, &dados);
+    float x = l * .5f, y = h * .5f, z = pr * .5f;
+    const float p[] = {-x, -y, z, x, -y, z,  x, y, z,  -x, y, z,  x,  -y, -z, -x, -y, -z, -x, y,  -z, x,  y,  -z,
+                       -x, y,  z, x, y,  z,  x, y, -z, -x, y, -z, -x, -y, -z, x,  -y, -z, x,  -y, z,  -x, -y, z,
+                       x,  -y, z, x, -y, -z, x, y, -z, x,  y, z,  -x, -y, -z, -x, -y, z,  -x, y,  z,  -x, y,  -z};
+    const float n[] = {0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,  0,  -1, 0,  0,  -1, 0,  0,  -1, 0,  0,  -1,
+                       0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,  -1, 0,  0,  -1, 0,  0,  -1, 0,  0,  -1, 0,
+                       1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0,  0,  -1, 0,  0,  -1, 0,  0,  -1, 0,  0};
+    const float uv[] = {0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1,
+                        0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1};
+    const uint32_t i[] = {0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,  8,  9,  10, 8,  10, 11,
+                          12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
+    LumeGeometryData d = {0};
+    if (l <= 0 || h <= 0 || pr <= 0)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "geometry.box", NULL, 0, 0,
+                                 "Box dimensions must be greater than zero.");
+    d.positions = p;
+    d.normals = n;
+    d.texture_coordinates = uv;
+    d.vertex_count = 24;
+    d.indices = i;
+    d.index_count = 36;
+    return lume_geometry_create(a, &d, s);
 }
-
-LumeGeometry *lume_geometry_create_sphere(LumeApp *aplicativo, float raio, uint32_t segmentos_largura,
-                                          uint32_t segmentos_altura)
+LumeResult lume_geometry_create_sphere(LumeApp *a, float raio, uint32_t sl, uint32_t sh, LumeGeometry **s)
 {
-    LumeGeometry *geometria;
-    LumeGeometryData dados;
-    float *posicoes;
-    float *normais;
-    float *uvs;
-    uint32_t *indices;
-    size_t quantidade_vertices;
-    size_t quantidade_indices;
-    size_t vertice = 0;
-    size_t indice = 0;
-    uint32_t y;
-    uint32_t x;
-
-    if (raio <= 0.0f || segmentos_largura < 3 || segmentos_altura < 2)
+    LumeGeometryData d = {0};
+    float *p, *n, *uv;
+    uint32_t *ind;
+    size_t qv, qi, v = 0, k = 0;
+    uint32_t y, x;
+    LumeResult r;
+    if (raio <= 0 || sl < 3 || sh < 2)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "geometry.sphere", NULL, 0, 0,
+                                 "Sphere radius must be positive, with at least 3x2 segments.");
+    qv = (size_t)(sl + 1) * (sh + 1);
+    qi = (size_t)sl * sh * 6;
+    p = malloc(qv * 3 * sizeof(float));
+    n = malloc(qv * 3 * sizeof(float));
+    uv = malloc(qv * 2 * sizeof(float));
+    ind = malloc(qi * sizeof(uint32_t));
+    if (!p || !n || !uv || !ind)
     {
-        lume_definir_erro("Sphere radius must be positive, with at least 3x2 segments.");
-        return NULL;
+        free(p);
+        free(n);
+        free(uv);
+        free(ind);
+        return lume_definir_erro(LUME_ERROR_OUT_OF_MEMORY, "geometry.sphere", NULL, 0, 0,
+                                 "Out of memory while generating a sphere.");
     }
-    quantidade_vertices = (size_t)(segmentos_largura + 1) * (segmentos_altura + 1);
-    quantidade_indices = (size_t)segmentos_largura * segmentos_altura * 6;
-    posicoes = malloc(quantidade_vertices * 3 * sizeof(float));
-    normais = malloc(quantidade_vertices * 3 * sizeof(float));
-    uvs = malloc(quantidade_vertices * 2 * sizeof(float));
-    indices = malloc(quantidade_indices * sizeof(uint32_t));
-    if (!posicoes || !normais || !uvs || !indices)
+    for (y = 0; y <= sh; ++y)
     {
-        lume_definir_erro("Out of memory while generating a sphere.");
-        free(posicoes);
-        free(normais);
-        free(uvs);
-        free(indices);
-        return NULL;
-    }
-
-    for (y = 0; y <= segmentos_altura; ++y)
-    {
-        float v = (float)y / (float)segmentos_altura;
-        float phi = v * 3.1415926535f;
-        for (x = 0; x <= segmentos_largura; ++x)
+        float vv = (float)y / sh, phi = vv * 3.1415926535f;
+        for (x = 0; x <= sl; ++x)
         {
-            float u = (float)x / (float)segmentos_largura;
-            float theta = u * 6.283185307f;
-            float nx = sinf(phi) * cosf(theta);
-            float ny = cosf(phi);
-            float nz = sinf(phi) * sinf(theta);
-            posicoes[vertice * 3] = nx * raio;
-            posicoes[vertice * 3 + 1] = ny * raio;
-            posicoes[vertice * 3 + 2] = nz * raio;
-            normais[vertice * 3] = nx;
-            normais[vertice * 3 + 1] = ny;
-            normais[vertice * 3 + 2] = nz;
-            uvs[vertice * 2] = u;
-            uvs[vertice * 2 + 1] = 1.0f - v;
-            ++vertice;
+            float u = (float)x / sl, theta = u * 6.283185307f, nx = sinf(phi) * cosf(theta), ny = cosf(phi),
+                  nz = sinf(phi) * sinf(theta);
+            p[v * 3] = nx * raio;
+            p[v * 3 + 1] = ny * raio;
+            p[v * 3 + 2] = nz * raio;
+            n[v * 3] = nx;
+            n[v * 3 + 1] = ny;
+            n[v * 3 + 2] = nz;
+            uv[v * 2] = u;
+            uv[v * 2 + 1] = 1 - vv;
+            ++v;
         }
     }
-    for (y = 0; y < segmentos_altura; ++y)
-    {
-        for (x = 0; x < segmentos_largura; ++x)
+    for (y = 0; y < sh; ++y)
+        for (x = 0; x < sl; ++x)
         {
-            uint32_t a = y * (segmentos_largura + 1) + x;
-            uint32_t b = a + segmentos_largura + 1;
-            /* A ordem anti-horária mantém a face externa voltada para fora. */
-            indices[indice++] = a;
-            indices[indice++] = a + 1;
-            indices[indice++] = b;
-            indices[indice++] = a + 1;
-            indices[indice++] = b + 1;
-            indices[indice++] = b;
+            uint32_t z = y * (sl + 1) + x, b = z + sl + 1;
+            ind[k++] = z;
+            ind[k++] = z + 1;
+            ind[k++] = b;
+            ind[k++] = z + 1;
+            ind[k++] = b + 1;
+            ind[k++] = b;
         }
-    }
-    dados = (LumeGeometryData){posicoes, normais, uvs, quantidade_vertices, indices, quantidade_indices};
-    geometria = lume_geometry_create_custom(aplicativo, &dados);
-    free(posicoes);
-    free(normais);
-    free(uvs);
-    free(indices);
-    return geometria;
+    d.positions = p;
+    d.normals = n;
+    d.texture_coordinates = uv;
+    d.vertex_count = qv;
+    d.indices = ind;
+    d.index_count = qi;
+    r = lume_geometry_create(a, &d, s);
+    free(p);
+    free(n);
+    free(uv);
+    free(ind);
+    return r;
 }

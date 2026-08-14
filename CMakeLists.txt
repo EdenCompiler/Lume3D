@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(Lume3D VERSION 1.0.0 LANGUAGES C)
+project(Lume3D VERSION 1.5.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -63,14 +63,38 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(stb)
 
+FetchContent_Declare(
+    cgltf
+    GIT_REPOSITORY https://github.com/jkuhlmann/cgltf.git
+    GIT_TAG bbeb5b0b070ddacddac6852fb72143eb68454937
+    GIT_SHALLOW FALSE
+)
+FetchContent_Declare(
+    fast_obj
+    GIT_REPOSITORY https://github.com/thisistherk/fast_obj.git
+    GIT_TAG 42629f744269e004907a6fb4f16c6c7f69acc586
+    GIT_SHALLOW FALSE
+)
+FetchContent_Declare(
+    tinycthread
+    GIT_REPOSITORY https://github.com/tinycthread/tinycthread.git
+    GIT_TAG 6b9816f06eaccb39c2c9a4adb75f94a3a63de57a
+    GIT_SHALLOW FALSE
+)
+FetchContent_MakeAvailable(cgltf fast_obj tinycthread)
+
 add_library(lume3d
     src/aplicativo.c
+    src/animacao.c
+    src/assets.c
     src/cena.c
     src/geometria.c
     src/matematica.c
     src/recursos.c
     src/renderizador.c
     src/stb_imagem.c
+    src/terceiros.c
+    ${tinycthread_SOURCE_DIR}/source/tinycthread.c
 )
 add_library(Lume3D::lume3d ALIAS lume3d)
 
@@ -82,6 +106,9 @@ target_include_directories(lume3d
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${stb_SOURCE_DIR}
+        ${cgltf_SOURCE_DIR}
+        ${fast_obj_SOURCE_DIR}
+        ${tinycthread_SOURCE_DIR}/source
 )
 target_link_libraries(lume3d PRIVATE glfw lume_glad)
 target_compile_definitions(lume3d
@@ -112,15 +139,17 @@ if(LUME_BUILD_EXAMPLES)
     add_executable(lume_example_cube examples/cubo.c)
     add_executable(lume_example_solar_system examples/sistema_solar.c)
     add_executable(lume_example_lighting examples/iluminacao.c)
+    add_executable(lume_example_ocean examples/oceano.c)
     target_link_libraries(lume_example_cube PRIVATE Lume3D::lume3d)
     target_link_libraries(lume_example_solar_system PRIVATE Lume3D::lume3d)
     target_link_libraries(lume_example_lighting PRIVATE Lume3D::lume3d)
+    target_link_libraries(lume_example_ocean PRIVATE Lume3D::lume3d)
 endif()
 
 if(LUME_BUILD_TESTS)
     enable_testing()
-    add_executable(lume_tests tests/testes.c src/matematica.c)
-    target_include_directories(lume_tests PRIVATE src)
+    add_executable(lume_tests tests/testes.c)
+    target_include_directories(lume_tests PRIVATE src ${tinycthread_SOURCE_DIR}/source)
     target_link_libraries(lume_tests PRIVATE Lume3D::lume3d glfw lume_glad)
     if(NOT MSVC)
         target_link_libraries(lume_tests PRIVATE m)
@@ -128,13 +157,15 @@ if(LUME_BUILD_TESTS)
     add_test(NAME lume_unit_tests COMMAND lume_tests)
 
     add_executable(lume_render_test tests/teste_render.c)
-    target_include_directories(lume_render_test PRIVATE src)
+    target_include_directories(lume_render_test PRIVATE src ${tinycthread_SOURCE_DIR}/source)
+    target_compile_definitions(lume_render_test PRIVATE LUME_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     target_link_libraries(lume_render_test PRIVATE Lume3D::lume3d glfw lume_glad)
     add_test(NAME lume_render_test COMMAND lume_render_test)
     if(LUME_BUILD_EXAMPLES)
         add_test(NAME lume_cube_example_smoke COMMAND lume_example_cube --smoke)
         add_test(NAME lume_solar_system_example_smoke COMMAND lume_example_solar_system --smoke)
         add_test(NAME lume_lighting_example_smoke COMMAND lume_example_lighting --smoke)
+        add_test(NAME lume_ocean_example_smoke COMMAND lume_example_ocean --smoke)
     endif()
 endif()
 

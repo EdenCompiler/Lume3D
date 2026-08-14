@@ -4,20 +4,48 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char lume_ultimo_erro[1024] = "No error.";
+#if defined(_MSC_VER)
+#define LUME_LOCAL_THREAD __declspec(thread)
+#else
+#define LUME_LOCAL_THREAD _Thread_local
+#endif
+
+static LUME_LOCAL_THREAD LumeError lume_ultimo_erro = {LUME_SUCCESS, "none", NULL, 0, 0, "No error."};
 static int lume_contagem_glfw = 0;
 
-void lume_definir_erro(const char *formato, ...)
+const char *lume_version_string(void)
 {
-    va_list argumentos;
-    va_start(argumentos, formato);
-    vsnprintf(lume_ultimo_erro, sizeof(lume_ultimo_erro), formato, argumentos);
-    va_end(argumentos);
+    return LUME_VERSION_STRING;
+}
+const LumeError *lume_error_last(void)
+{
+    return &lume_ultimo_erro;
+}
+void lume_error_clear(void)
+{
+    lume_ultimo_erro = (LumeError){LUME_SUCCESS, "none", NULL, 0, 0, "No error."};
 }
 
-const char *lume_get_last_error(void)
+const char *lume_result_string(LumeResult resultado)
 {
-    return lume_ultimo_erro;
+    static const char *nomes[] = {"Success",     "Invalid argument", "Out of memory", "I/O error", "Parse error",
+                                  "Unsupported", "GPU error",        "Cancelled",     "Not ready", "Internal error"};
+    return resultado >= LUME_SUCCESS && resultado <= LUME_ERROR_INTERNAL ? nomes[resultado] : "Unknown result";
+}
+
+LumeResult lume_definir_erro(LumeResult codigo, const char *operacao, const char *caminho, int linha, int coluna,
+                             const char *formato, ...)
+{
+    va_list argumentos;
+    lume_ultimo_erro.code = codigo;
+    lume_ultimo_erro.operation = operacao ? operacao : "unknown";
+    lume_ultimo_erro.path = caminho;
+    lume_ultimo_erro.line = linha;
+    lume_ultimo_erro.column = coluna;
+    va_start(argumentos, formato);
+    vsnprintf(lume_ultimo_erro.message, sizeof(lume_ultimo_erro.message), formato, argumentos);
+    va_end(argumentos);
+    return codigo;
 }
 
 void lume_registrar_log(LumeApp *aplicativo, LumeLogLevel nivel, const char *formato, ...)
@@ -27,373 +55,327 @@ void lume_registrar_log(LumeApp *aplicativo, LumeLogLevel nivel, const char *for
     va_start(argumentos, formato);
     vsnprintf(mensagem, sizeof(mensagem), formato, argumentos);
     va_end(argumentos);
-
     if (aplicativo && aplicativo->retorno_log)
-    {
         aplicativo->retorno_log(nivel, mensagem, aplicativo->dados_log);
-        return;
-    }
-
-    fprintf(nivel == LUME_LOG_ERROR ? stderr : stdout, "[Lume3D] %s\n", mensagem);
+    else
+        fprintf(nivel == LUME_LOG_ERROR ? stderr : stdout, "[Lume3D] %s\n", mensagem);
 }
 
 bool lume_adicionar_ponteiro(void ***itens, size_t *quantidade, size_t *capacidade, void *item)
 {
-    void **novos_itens;
-    size_t nova_capacidade;
-
+    void **novos;
+    size_t nova;
     if (*quantidade < *capacidade)
     {
         (*itens)[(*quantidade)++] = item;
         return true;
     }
-
-    nova_capacidade = *capacidade == 0 ? 8 : *capacidade * 2;
-    novos_itens = realloc(*itens, nova_capacidade * sizeof(void *));
-    if (!novos_itens)
+    nova = *capacidade ? *capacidade * 2 : 8;
+    novos = realloc(*itens, nova * sizeof(void *));
+    if (!novos)
     {
-        lume_definir_erro("Out of memory while growing an internal collection.");
+        lume_definir_erro(LUME_ERROR_OUT_OF_MEMORY, "collection.grow", NULL, 0, 0,
+                          "Out of memory while growing an internal collection.");
         return false;
     }
-    *itens = novos_itens;
-    *capacidade = nova_capacidade;
+    *itens = novos;
+    *capacidade = nova;
     (*itens)[(*quantidade)++] = item;
     return true;
 }
-
 void lume_remover_ponteiro(void **itens, size_t *quantidade, const void *item)
 {
-    size_t indice;
-    for (indice = 0; indice < *quantidade; ++indice)
-    {
-        if (itens[indice] == item)
+    size_t i;
+    for (i = 0; i < *quantidade; ++i)
+        if (itens[i] == item)
         {
-            itens[indice] = itens[*quantidade - 1];
-            --(*quantidade);
+            itens[i] = itens[*quantidade - 1];
+            --*quantidade;
             return;
         }
-    }
+}
+char *lume_copiar_texto(const char *texto)
+{
+    char *copia;
+    size_t tamanho;
+    if (!texto)
+        return NULL;
+    tamanho = strlen(texto) + 1;
+    copia = malloc(tamanho);
+    if (copia)
+        memcpy(copia, texto, tamanho);
+    return copia;
+}
+int lume_referencia_reter(LumeReferencia *r)
+{
+#if defined(_WIN32)
+    return (int)InterlockedIncrement((volatile LONG *)&r->contagem);
+#else
+    return __atomic_add_fetch(&r->contagem, 1, __ATOMIC_RELAXED);
+#endif
+}
+int lume_referencia_liberar(LumeReferencia *r)
+{
+#if defined(_WIN32)
+    return (int)InterlockedDecrement((volatile LONG *)&r->contagem);
+#else
+    return __atomic_sub_fetch(&r->contagem, 1, __ATOMIC_ACQ_REL);
+#endif
+}
+void lume_registrar_recurso(LumeApp *a, void *r)
+{
+    if (a)
+        (void)lume_adicionar_ponteiro(&a->recursos, &a->quantidade_recursos, &a->capacidade_recursos, r);
+}
+void lume_desregistrar_recurso(LumeApp *a, void *r)
+{
+    if (a)
+        lume_remover_ponteiro(a->recursos, &a->quantidade_recursos, r);
 }
 
 static void lume_retorno_erro_glfw(int codigo, const char *descricao)
 {
-    lume_definir_erro("GLFW error %d: %s", codigo, descricao ? descricao : "Unknown GLFW error.");
+    lume_definir_erro(LUME_ERROR_INTERNAL, "glfw", NULL, 0, 0, "GLFW error %d: %s", codigo,
+                      descricao ? descricao : "Unknown GLFW error.");
 }
-
-static void lume_retorno_tecla(GLFWwindow *janela, int tecla, int codigo_varredura, int acao, int modificadores)
+static void lume_retorno_tecla(GLFWwindow *j, int t, int cv, int acao, int mods)
 {
-    LumeApp *aplicativo = glfwGetWindowUserPointer(janela);
-    (void)codigo_varredura;
-    (void)modificadores;
-    if (aplicativo && tecla >= 0 && tecla < LUME_TOTAL_TECLAS)
-    {
-        aplicativo->teclas[tecla] = acao != GLFW_RELEASE;
-    }
+    LumeApp *a = glfwGetWindowUserPointer(j);
+    (void)cv;
+    (void)mods;
+    if (a && t >= 0 && t < LUME_TOTAL_TECLAS)
+        a->teclas[t] = acao != GLFW_RELEASE;
 }
-
-static void lume_retorno_botao_mouse(GLFWwindow *janela, int botao, int acao, int modificadores)
+static void lume_retorno_botao(GLFWwindow *j, int b, int acao, int mods)
 {
-    LumeApp *aplicativo = glfwGetWindowUserPointer(janela);
-    (void)modificadores;
-    if (aplicativo && botao >= 0 && botao < LUME_TOTAL_BOTOES_MOUSE)
-    {
-        aplicativo->botoes_mouse[botao] = acao != GLFW_RELEASE;
-    }
+    LumeApp *a = glfwGetWindowUserPointer(j);
+    (void)mods;
+    if (a && b >= 0 && b < LUME_TOTAL_BOTOES_MOUSE)
+        a->botoes_mouse[b] = acao != GLFW_RELEASE;
 }
-
-static void lume_retorno_cursor(GLFWwindow *janela, double x, double y)
+static void lume_retorno_cursor(GLFWwindow *j, double x, double y)
 {
-    LumeApp *aplicativo = glfwGetWindowUserPointer(janela);
-    if (aplicativo)
-    {
-        aplicativo->posicao_mouse = (LumeVec2){(float)x, (float)y};
-    }
+    LumeApp *a = glfwGetWindowUserPointer(j);
+    if (a)
+        a->posicao_mouse = (LumeVec2){(float)x, (float)y};
 }
-
-static void lume_retorno_rolagem(GLFWwindow *janela, double x, double y)
+static void lume_retorno_rolagem(GLFWwindow *j, double x, double y)
 {
-    LumeApp *aplicativo = glfwGetWindowUserPointer(janela);
-    if (aplicativo)
+    LumeApp *a = glfwGetWindowUserPointer(j);
+    if (a)
     {
-        aplicativo->rolagem_mouse.x += (float)x;
-        aplicativo->rolagem_mouse.y += (float)y;
+        a->rolagem_mouse.x += (float)x;
+        a->rolagem_mouse.y += (float)y;
     }
 }
 
 LumeAppConfig lume_app_config_default(void)
 {
-    return (LumeAppConfig){"Lume3D", 1280, 720, true, true, true, {0.04f, 0.05f, 0.08f, 1.0f}, NULL, NULL};
+    LumeAppConfig c = {0};
+    c.title = "Lume3D";
+    c.width = 1280;
+    c.height = 720;
+    c.resizable = true;
+    c.visible = true;
+    c.vsync = true;
+    c.clear_color = (LumeColor){0.04f, 0.05f, 0.08f, 1.0f};
+    c.hot_reload_interval_seconds = 0.5f;
+    return c;
 }
 
-LumeApp *lume_app_create(const LumeAppConfig *config)
+LumeResult lume_app_create(const LumeAppConfig *config, LumeApp **saida)
 {
-    LumeAppConfig configuracao = config ? *config : lume_app_config_default();
-    LumeApp *aplicativo;
-    double mouse_x;
-    double mouse_y;
-
-    if (configuracao.width <= 0 || configuracao.height <= 0)
-    {
-        lume_definir_erro("Window width and height must be greater than zero.");
-        return NULL;
-    }
-
+    LumeAppConfig c = config ? *config : lume_app_config_default();
+    LumeApp *a;
+    double x, y;
+    LumeResult resultado;
+    if (!saida)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "app.create", NULL, 0, 0, "out_app must not be NULL.");
+    *saida = NULL;
+    if (c.width <= 0 || c.height <= 0)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "app.create", NULL, 0, 0,
+                                 "Window width and height must be greater than zero.");
     glfwSetErrorCallback(lume_retorno_erro_glfw);
     if (lume_contagem_glfw == 0 && !glfwInit())
-    {
-        if (strcmp(lume_ultimo_erro, "No error.") == 0)
-        {
-            lume_definir_erro("GLFW could not be initialized.");
-        }
-        return NULL;
-    }
+        return lume_definir_erro(LUME_ERROR_INTERNAL, "app.create", NULL, 0, 0, "GLFW could not be initialized.");
     ++lume_contagem_glfw;
-
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-#endif
-    glfwWindowHint(GLFW_RESIZABLE, configuracao.resizable ? GLFW_TRUE : GLFW_FALSE);
-    glfwWindowHint(GLFW_VISIBLE, configuracao.visible ? GLFW_TRUE : GLFW_FALSE);
-
-    aplicativo = calloc(1, sizeof(*aplicativo));
-    if (!aplicativo)
+    glfwWindowHint(GLFW_RESIZABLE, c.resizable ? GLFW_TRUE : GLFW_FALSE);
+    glfwWindowHint(GLFW_VISIBLE, c.visible ? GLFW_TRUE : GLFW_FALSE);
+    a = calloc(1, sizeof(*a));
+    if (!a)
     {
-        lume_definir_erro("Out of memory while creating the application.");
-        --lume_contagem_glfw;
-        if (lume_contagem_glfw == 0)
-        {
-            glfwTerminate();
-        }
-        return NULL;
+        resultado = LUME_ERROR_OUT_OF_MEMORY;
+        goto falha_memoria;
     }
-
-    aplicativo->janela = glfwCreateWindow(configuracao.width, configuracao.height,
-                                          configuracao.title ? configuracao.title : "Lume3D", NULL, NULL);
-    if (!aplicativo->janela)
+    a->janela = glfwCreateWindow(c.width, c.height, c.title ? c.title : "Lume3D", NULL, NULL);
+    if (!a->janela)
     {
-        free(aplicativo);
-        --lume_contagem_glfw;
-        if (lume_contagem_glfw == 0)
-        {
-            glfwTerminate();
-        }
-        return NULL;
+        free(a);
+        resultado = LUME_ERROR_INTERNAL;
+        goto falha;
     }
-
-    aplicativo->cor_limpeza = configuracao.clear_color;
-    aplicativo->retorno_log = configuracao.log_callback;
-    aplicativo->dados_log = configuracao.log_user_data;
-    glfwMakeContextCurrent(aplicativo->janela);
-    glfwSwapInterval(configuracao.vsync ? 1 : 0);
-
+    a->cor_limpeza = c.clear_color;
+    a->retorno_log = c.log_callback;
+    a->dados_log = c.log_user_data;
+    a->intervalo_hot_reload = c.hot_reload_interval_seconds > 0 ? c.hot_reload_interval_seconds : 0.5f;
+    a->quantidade_trabalhadores = c.worker_count ? c.worker_count : 1;
+    glfwMakeContextCurrent(a->janela);
+    glfwSwapInterval(c.vsync ? 1 : 0);
     if (!gladLoadGL((GLADloadfunc)glfwGetProcAddress))
     {
-        lume_definir_erro("OpenGL functions could not be loaded.");
-        glfwDestroyWindow(aplicativo->janela);
-        free(aplicativo);
-        --lume_contagem_glfw;
-        if (lume_contagem_glfw == 0)
-        {
-            glfwTerminate();
-        }
-        return NULL;
+        glfwDestroyWindow(a->janela);
+        free(a);
+        resultado = LUME_ERROR_GPU;
+        goto falha;
     }
-
-    glfwSetWindowUserPointer(aplicativo->janela, aplicativo);
-    glfwSetKeyCallback(aplicativo->janela, lume_retorno_tecla);
-    glfwSetMouseButtonCallback(aplicativo->janela, lume_retorno_botao_mouse);
-    glfwSetCursorPosCallback(aplicativo->janela, lume_retorno_cursor);
-    glfwSetScrollCallback(aplicativo->janela, lume_retorno_rolagem);
-    glfwGetCursorPos(aplicativo->janela, &mouse_x, &mouse_y);
-    aplicativo->posicao_mouse = (LumeVec2){(float)mouse_x, (float)mouse_y};
-    aplicativo->posicao_mouse_anterior = aplicativo->posicao_mouse;
-    aplicativo->tempo_anterior = glfwGetTime();
-
-    if (!lume_inicializar_renderizador(aplicativo))
+    glfwSetWindowUserPointer(a->janela, a);
+    glfwSetKeyCallback(a->janela, lume_retorno_tecla);
+    glfwSetMouseButtonCallback(a->janela, lume_retorno_botao);
+    glfwSetCursorPosCallback(a->janela, lume_retorno_cursor);
+    glfwSetScrollCallback(a->janela, lume_retorno_rolagem);
+    glfwGetCursorPos(a->janela, &x, &y);
+    a->posicao_mouse = (LumeVec2){(float)x, (float)y};
+    a->posicao_mouse_anterior = a->posicao_mouse;
+    a->tempo_anterior = glfwGetTime();
+    resultado = lume_inicializar_renderizador(a);
+    if (resultado != LUME_SUCCESS)
     {
-        glfwDestroyWindow(aplicativo->janela);
-        free(aplicativo);
-        --lume_contagem_glfw;
-        if (lume_contagem_glfw == 0)
-        {
-            glfwTerminate();
-        }
-        return NULL;
+        glfwDestroyWindow(a->janela);
+        free(a);
+        goto falha;
     }
-
-    lume_registrar_log(aplicativo, LUME_LOG_INFO, "Lume3D 1.0.0 initialized with OpenGL %s.", glGetString(GL_VERSION));
-    return aplicativo;
-}
-
-void lume_app_destroy(LumeApp *aplicativo)
-{
-    size_t indice;
-    if (!aplicativo)
-    {
-        return;
-    }
-
-    glfwMakeContextCurrent(aplicativo->janela);
-    while (aplicativo->quantidade_cenas > 0)
-    {
-        lume_scene_destroy(aplicativo->cenas[aplicativo->quantidade_cenas - 1]);
-    }
-    for (indice = 0; indice < aplicativo->quantidade_geometrias; ++indice)
-    {
-        LumeGeometry *geometria = aplicativo->geometrias[indice];
-        if (geometria->vao)
-            glDeleteVertexArrays(1, &geometria->vao);
-        if (geometria->vbo)
-            glDeleteBuffers(1, &geometria->vbo);
-        if (geometria->ebo)
-            glDeleteBuffers(1, &geometria->ebo);
-        free(geometria->vertices);
-        free(geometria->indices);
-        free(geometria);
-    }
-    for (indice = 0; indice < aplicativo->quantidade_materiais; ++indice)
-    {
-        free(aplicativo->materiais[indice]);
-    }
-    for (indice = 0; indice < aplicativo->quantidade_texturas; ++indice)
-    {
-        glDeleteTextures(1, &aplicativo->texturas[indice]->identificador);
-        free(aplicativo->texturas[indice]);
-    }
-    free(aplicativo->cenas);
-    free(aplicativo->geometrias);
-    free(aplicativo->materiais);
-    free(aplicativo->texturas);
-    lume_destruir_renderizador(aplicativo);
-    glfwDestroyWindow(aplicativo->janela);
-    free(aplicativo);
-
+    *saida = a;
+    lume_error_clear();
+    lume_registrar_log(a, LUME_LOG_INFO, "Lume3D %s initialized with OpenGL %s.", LUME_VERSION_STRING,
+                       glGetString(GL_VERSION));
+    return LUME_SUCCESS;
+falha_memoria:
+    lume_definir_erro(resultado, "app.create", NULL, 0, 0, "Out of memory while creating the application.");
+falha:
     --lume_contagem_glfw;
     if (lume_contagem_glfw == 0)
-    {
         glfwTerminate();
-    }
+    return resultado;
 }
 
-bool lume_app_should_close(const LumeApp *aplicativo)
+void lume_app_destroy(LumeApp *a)
 {
-    return !aplicativo || glfwWindowShouldClose(aplicativo->janela) != 0;
-}
-
-void lume_app_request_close(LumeApp *aplicativo)
-{
-    if (aplicativo)
+    if (!a)
+        return;
+    glfwMakeContextCurrent(a->janela);
+    while (a->quantidade_trabalhos > 0)
+        lume_asset_job_release(a->trabalhos[a->quantidade_trabalhos - 1]);
+    lume_assets_clear_cache(a);
+    while (a->quantidade_cenas > 0)
+        lume_scene_destroy(a->cenas[a->quantidade_cenas - 1]);
+    while (a->quantidade_recursos > 0)
     {
-        glfwSetWindowShouldClose(aplicativo->janela, GLFW_TRUE);
+        LumeReferencia *r = a->recursos[a->quantidade_recursos - 1];
+        lume_registrar_log(a, LUME_LOG_WARNING,
+                           "Leaked %s resource with %d reference(s); releasing it during shutdown.",
+                           r->nome_tipo ? r->nome_tipo : "unknown", r->contagem);
+        r->contagem = 1;
+        if (r->destruir)
+            r->destruir(r);
+        else
+            --a->quantidade_recursos;
     }
+    free(a->trabalhos);
+    free(a->cache_modelos);
+    free(a->cenas);
+    free(a->recursos);
+    lume_destruir_renderizador(a);
+    glfwDestroyWindow(a->janela);
+    free(a);
+    --lume_contagem_glfw;
+    if (lume_contagem_glfw == 0)
+        glfwTerminate();
 }
 
-float lume_app_begin_frame(LumeApp *aplicativo)
+LumeRenderer *lume_app_renderer(LumeApp *a)
 {
-    double tempo_atual;
-    if (!aplicativo)
-    {
-        return 0.0f;
-    }
-    memcpy(aplicativo->teclas_anteriores, aplicativo->teclas, sizeof(aplicativo->teclas));
-    memcpy(aplicativo->botoes_mouse_anteriores, aplicativo->botoes_mouse, sizeof(aplicativo->botoes_mouse));
-    aplicativo->posicao_mouse_anterior = aplicativo->posicao_mouse;
-    aplicativo->rolagem_mouse = (LumeVec2){0.0f, 0.0f};
+    return a ? a->renderizador : NULL;
+}
+bool lume_app_should_close(const LumeApp *a)
+{
+    return !a || glfwWindowShouldClose(a->janela) != 0;
+}
+void lume_app_request_close(LumeApp *a)
+{
+    if (a)
+        glfwSetWindowShouldClose(a->janela, GLFW_TRUE);
+}
+float lume_app_begin_frame(LumeApp *a)
+{
+    double agora;
+    if (!a)
+        return 0;
+    memcpy(a->teclas_anteriores, a->teclas, sizeof(a->teclas));
+    memcpy(a->botoes_mouse_anteriores, a->botoes_mouse, sizeof(a->botoes_mouse));
+    a->posicao_mouse_anterior = a->posicao_mouse;
+    a->rolagem_mouse = (LumeVec2){0, 0};
     glfwPollEvents();
-    aplicativo->delta_mouse = (LumeVec2){aplicativo->posicao_mouse.x - aplicativo->posicao_mouse_anterior.x,
-                                         aplicativo->posicao_mouse.y - aplicativo->posicao_mouse_anterior.y};
-    tempo_atual = glfwGetTime();
-    aplicativo->delta_tempo = (float)(tempo_atual - aplicativo->tempo_anterior);
-    aplicativo->tempo_anterior = tempo_atual;
-    return aplicativo->delta_tempo;
+    a->delta_mouse =
+        (LumeVec2){a->posicao_mouse.x - a->posicao_mouse_anterior.x, a->posicao_mouse.y - a->posicao_mouse_anterior.y};
+    agora = glfwGetTime();
+    a->delta_tempo = (float)(agora - a->tempo_anterior);
+    a->tempo_anterior = agora;
+    lume_processar_trabalhos(a);
+    lume_processar_recarga(a, a->delta_tempo);
+    return a->delta_tempo;
 }
-
-void lume_app_end_frame(LumeApp *aplicativo)
+void lume_app_end_frame(LumeApp *a)
 {
-    if (aplicativo)
-    {
-        glfwSwapBuffers(aplicativo->janela);
-    }
+    if (a)
+        glfwSwapBuffers(a->janela);
 }
-
-void lume_app_set_clear_color(LumeApp *aplicativo, LumeColor cor)
+void lume_app_set_clear_color(LumeApp *a, LumeColor c)
 {
-    if (aplicativo)
-    {
-        aplicativo->cor_limpeza = cor;
-    }
+    if (a)
+        a->cor_limpeza = c;
 }
-
-void lume_app_get_framebuffer_size(const LumeApp *aplicativo, int *largura, int *altura)
+void lume_app_get_framebuffer_size(const LumeApp *a, int *l, int *h)
 {
-    int largura_local = 0;
-    int altura_local = 0;
-    if (aplicativo)
-    {
-        glfwGetFramebufferSize(aplicativo->janela, &largura_local, &altura_local);
-    }
-    if (largura)
-        *largura = largura_local;
-    if (altura)
-        *altura = altura_local;
+    int x = 0, y = 0;
+    if (a)
+        glfwGetFramebufferSize(a->janela, &x, &y);
+    if (l)
+        *l = x;
+    if (h)
+        *h = y;
 }
-
-static bool lume_tecla_valida(LumeKey tecla)
+static bool lume_tecla_valida(int t)
 {
-    return (int)tecla >= 0 && (int)tecla < LUME_TOTAL_TECLAS;
+    return t >= 0 && t < LUME_TOTAL_TECLAS;
 }
-
-bool lume_key_is_down(const LumeApp *aplicativo, LumeKey tecla)
+bool lume_key_is_down(const LumeApp *a, LumeKey t)
 {
-    return aplicativo && lume_tecla_valida(tecla) && aplicativo->teclas[tecla];
+    return a && lume_tecla_valida(t) && a->teclas[t];
 }
-
-bool lume_key_was_pressed(const LumeApp *aplicativo, LumeKey tecla)
+bool lume_key_was_pressed(const LumeApp *a, LumeKey t)
 {
-    return aplicativo && lume_tecla_valida(tecla) && aplicativo->teclas[tecla] && !aplicativo->teclas_anteriores[tecla];
+    return a && lume_tecla_valida(t) && a->teclas[t] && !a->teclas_anteriores[t];
 }
-
-bool lume_key_was_released(const LumeApp *aplicativo, LumeKey tecla)
+bool lume_key_was_released(const LumeApp *a, LumeKey t)
 {
-    return aplicativo && lume_tecla_valida(tecla) && !aplicativo->teclas[tecla] && aplicativo->teclas_anteriores[tecla];
+    return a && lume_tecla_valida(t) && !a->teclas[t] && a->teclas_anteriores[t];
 }
-
-static bool lume_botao_valido(LumeMouseButton botao)
+static bool lume_botao_valido(int b)
 {
-    return (int)botao >= 0 && (int)botao < LUME_TOTAL_BOTOES_MOUSE;
+    return b >= 0 && b < LUME_TOTAL_BOTOES_MOUSE;
 }
-
-bool lume_mouse_button_is_down(const LumeApp *aplicativo, LumeMouseButton botao)
+bool lume_mouse_button_is_down(const LumeApp *a, LumeMouseButton b)
 {
-    return aplicativo && lume_botao_valido(botao) && aplicativo->botoes_mouse[botao];
+    return a && lume_botao_valido(b) && a->botoes_mouse[b];
 }
-
-bool lume_mouse_button_was_pressed(const LumeApp *aplicativo, LumeMouseButton botao)
+bool lume_mouse_button_was_pressed(const LumeApp *a, LumeMouseButton b)
 {
-    return aplicativo && lume_botao_valido(botao) && aplicativo->botoes_mouse[botao] &&
-           !aplicativo->botoes_mouse_anteriores[botao];
+    return a && lume_botao_valido(b) && a->botoes_mouse[b] && !a->botoes_mouse_anteriores[b];
 }
-
-bool lume_mouse_button_was_released(const LumeApp *aplicativo, LumeMouseButton botao)
+bool lume_mouse_button_was_released(const LumeApp *a, LumeMouseButton b)
 {
-    return aplicativo && lume_botao_valido(botao) && !aplicativo->botoes_mouse[botao] &&
-           aplicativo->botoes_mouse_anteriores[botao];
-}
-
-LumeVec2 lume_mouse_position(const LumeApp *aplicativo)
-{
-    return aplicativo ? aplicativo->posicao_mouse : (LumeVec2){0.0f, 0.0f};
-}
-
-LumeVec2 lume_mouse_delta(const LumeApp *aplicativo)
-{
-    return aplicativo ? aplicativo->delta_mouse : (LumeVec2){0.0f, 0.0f};
-}
-
-LumeVec2 lume_mouse_scroll(const LumeApp *aplicativo)
-{
-    return aplicativo ? aplicativo->rolagem_mouse : (LumeVec2){0.0f, 0.0f};
+    return a && lume_botao_valido(b) && !a->botoes_mouse[b] && a->botoes_mouse_anteriores[b];
 }

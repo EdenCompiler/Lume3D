@@ -1,222 +1,304 @@
 #include "lume_interno.h"
 
+#include <float.h>
 #include <math.h>
 
-LumeVec3 lume_vetor3_subtrair(LumeVec3 a, LumeVec3 b)
+LumeVec3 lume_vec3_add(LumeVec3 a, LumeVec3 b)
+{
+    return (LumeVec3){a.x + b.x, a.y + b.y, a.z + b.z};
+}
+LumeVec3 lume_vec3_subtract(LumeVec3 a, LumeVec3 b)
 {
     return (LumeVec3){a.x - b.x, a.y - b.y, a.z - b.z};
 }
-
-float lume_vetor3_produto_escalar(LumeVec3 a, LumeVec3 b)
+LumeVec3 lume_vec3_scale(LumeVec3 v, float e)
+{
+    return (LumeVec3){v.x * e, v.y * e, v.z * e};
+}
+float lume_vec3_dot(LumeVec3 a, LumeVec3 b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
-
-LumeVec3 lume_vetor3_produto_vetorial(LumeVec3 a, LumeVec3 b)
+LumeVec3 lume_vec3_cross(LumeVec3 a, LumeVec3 b)
 {
     return (LumeVec3){a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
-
-LumeVec3 lume_vetor3_normalizar(LumeVec3 vetor)
+float lume_vec3_length(LumeVec3 v)
 {
-    float comprimento = sqrtf(lume_vetor3_produto_escalar(vetor, vetor));
+    return sqrtf(lume_vec3_dot(v, v));
+}
+LumeVec3 lume_vec3_normalize(LumeVec3 v)
+{
+    float comprimento = lume_vec3_length(v);
+    return comprimento > 0.000001f ? lume_vec3_scale(v, 1.0f / comprimento) : (LumeVec3){0.0f, 0.0f, 0.0f};
+}
+
+LumeQuat lume_quat_identity(void)
+{
+    return (LumeQuat){0.0f, 0.0f, 0.0f, 1.0f};
+}
+
+static LumeQuat lume_quat_normalizar(LumeQuat q)
+{
+    float comprimento = sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
     if (comprimento <= 0.000001f)
+        return lume_quat_identity();
+    return (LumeQuat){q.x / comprimento, q.y / comprimento, q.z / comprimento, q.w / comprimento};
+}
+
+static LumeQuat lume_quat_multiplicar(LumeQuat a, LumeQuat b)
+{
+    return (LumeQuat){a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y, a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+                      a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z};
+}
+
+LumeQuat lume_quat_from_euler(LumeVec3 r)
+{
+    float cx = cosf(r.x * 0.5f), sx = sinf(r.x * 0.5f);
+    float cy = cosf(r.y * 0.5f), sy = sinf(r.y * 0.5f);
+    float cz = cosf(r.z * 0.5f), sz = sinf(r.z * 0.5f);
+    LumeQuat qx = {sx, 0, 0, cx}, qy = {0, sy, 0, cy}, qz = {0, 0, sz, cz};
+    return lume_quat_normalizar(lume_quat_multiplicar(qz, lume_quat_multiplicar(qy, qx)));
+}
+
+LumeQuat lume_quat_slerp(LumeQuat a, LumeQuat b, float t)
+{
+    float produto = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+    float escala_a, escala_b;
+    if (produto < 0.0f)
     {
-        return (LumeVec3){0.0f, 0.0f, 0.0f};
+        produto = -produto;
+        b = (LumeQuat){-b.x, -b.y, -b.z, -b.w};
     }
-    return (LumeVec3){vetor.x / comprimento, vetor.y / comprimento, vetor.z / comprimento};
-}
-
-LumeMatriz4 lume_matriz_identidade(void)
-{
-    LumeMatriz4 matriz = {{0}};
-    matriz.valor[0] = 1.0f;
-    matriz.valor[5] = 1.0f;
-    matriz.valor[10] = 1.0f;
-    matriz.valor[15] = 1.0f;
-    return matriz;
-}
-
-LumeMatriz4 lume_matriz_multiplicar(LumeMatriz4 esquerda, LumeMatriz4 direita)
-{
-    LumeMatriz4 resultado = {{0}};
-    int coluna;
-    int linha;
-    int indice;
-
-    for (coluna = 0; coluna < 4; ++coluna)
+    if (produto > 0.9995f)
+        return lume_quat_normalizar(
+            (LumeQuat){a.x + t * (b.x - a.x), a.y + t * (b.y - a.y), a.z + t * (b.z - a.z), a.w + t * (b.w - a.w)});
     {
-        for (linha = 0; linha < 4; ++linha)
-        {
-            for (indice = 0; indice < 4; ++indice)
-            {
-                resultado.valor[coluna * 4 + linha] +=
-                    esquerda.valor[indice * 4 + linha] * direita.valor[coluna * 4 + indice];
-            }
-        }
+        float angulo = acosf(fmaxf(-1.0f, fminf(1.0f, produto)));
+        float seno = sinf(angulo);
+        escala_a = sinf((1.0f - t) * angulo) / seno;
+        escala_b = sinf(t * angulo) / seno;
     }
-    return resultado;
+    return (LumeQuat){a.x * escala_a + b.x * escala_b, a.y * escala_a + b.y * escala_b, a.z * escala_a + b.z * escala_b,
+                      a.w * escala_a + b.w * escala_b};
 }
 
-static LumeMatriz4 lume_matriz_translacao(LumeVec3 posicao)
+LumeMat4 lume_mat4_identity(void)
 {
-    LumeMatriz4 matriz = lume_matriz_identidade();
-    matriz.valor[12] = posicao.x;
-    matriz.valor[13] = posicao.y;
-    matriz.valor[14] = posicao.z;
-    return matriz;
+    LumeMat4 m = {{0}};
+    m.values[0] = m.values[5] = m.values[10] = m.values[15] = 1.0f;
+    return m;
 }
 
-static LumeMatriz4 lume_matriz_escala(LumeVec3 escala)
+LumeMat4 lume_mat4_multiply(LumeMat4 a, LumeMat4 b)
 {
-    LumeMatriz4 matriz = {{0}};
-    matriz.valor[0] = escala.x;
-    matriz.valor[5] = escala.y;
-    matriz.valor[10] = escala.z;
-    matriz.valor[15] = 1.0f;
-    return matriz;
+    LumeMat4 r = {{0}};
+    int c, l, i;
+    for (c = 0; c < 4; ++c)
+        for (l = 0; l < 4; ++l)
+            for (i = 0; i < 4; ++i)
+                r.values[c * 4 + l] += a.values[i * 4 + l] * b.values[c * 4 + i];
+    return r;
 }
 
-static LumeMatriz4 lume_matriz_rotacao_x(float angulo)
+LumeMat4 lume_mat4_transform(LumeVec3 p, LumeQuat q, LumeVec3 s)
 {
-    LumeMatriz4 matriz = lume_matriz_identidade();
-    float cosseno = cosf(angulo);
-    float seno = sinf(angulo);
-    matriz.valor[5] = cosseno;
-    matriz.valor[6] = seno;
-    matriz.valor[9] = -seno;
-    matriz.valor[10] = cosseno;
-    return matriz;
+    LumeMat4 m = lume_mat4_identity();
+    float xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z, xy = q.x * q.y, xz = q.x * q.z;
+    float yz = q.y * q.z, wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
+    q = lume_quat_normalizar(q);
+    (void)q;
+    m.values[0] = (1 - 2 * (yy + zz)) * s.x;
+    m.values[1] = (2 * (xy + wz)) * s.x;
+    m.values[2] = (2 * (xz - wy)) * s.x;
+    m.values[4] = (2 * (xy - wz)) * s.y;
+    m.values[5] = (1 - 2 * (xx + zz)) * s.y;
+    m.values[6] = (2 * (yz + wx)) * s.y;
+    m.values[8] = (2 * (xz + wy)) * s.z;
+    m.values[9] = (2 * (yz - wx)) * s.z;
+    m.values[10] = (1 - 2 * (xx + yy)) * s.z;
+    m.values[12] = p.x;
+    m.values[13] = p.y;
+    m.values[14] = p.z;
+    return m;
 }
 
-static LumeMatriz4 lume_matriz_rotacao_y(float angulo)
+LumeMat4 lume_matriz_transformacao_euler(LumeVec3 p, LumeVec3 r, LumeVec3 s)
 {
-    LumeMatriz4 matriz = lume_matriz_identidade();
-    float cosseno = cosf(angulo);
-    float seno = sinf(angulo);
-    matriz.valor[0] = cosseno;
-    matriz.valor[2] = -seno;
-    matriz.valor[8] = seno;
-    matriz.valor[10] = cosseno;
-    return matriz;
+    return lume_mat4_transform(p, lume_quat_from_euler(r), s);
 }
 
-static LumeMatriz4 lume_matriz_rotacao_z(float angulo)
+LumeMat4 lume_mat4_perspective(float fov, float aspect, float perto, float longe)
 {
-    LumeMatriz4 matriz = lume_matriz_identidade();
-    float cosseno = cosf(angulo);
-    float seno = sinf(angulo);
-    matriz.valor[0] = cosseno;
-    matriz.valor[1] = seno;
-    matriz.valor[4] = -seno;
-    matriz.valor[5] = cosseno;
-    return matriz;
+    LumeMat4 m = {{0}};
+    float e = 1.0f / tanf(fov * 0.5f);
+    m.values[0] = e / aspect;
+    m.values[5] = e;
+    m.values[10] = (longe + perto) / (perto - longe);
+    m.values[11] = -1.0f;
+    m.values[14] = (2.0f * longe * perto) / (perto - longe);
+    return m;
 }
 
-LumeMatriz4 lume_matriz_transformacao(LumeVec3 posicao, LumeVec3 rotacao, LumeVec3 escala)
+LumeMat4 lume_mat4_orthographic(float e, float d, float b, float t, float p, float l)
 {
-    LumeMatriz4 matriz = lume_matriz_translacao(posicao);
-    matriz = lume_matriz_multiplicar(matriz, lume_matriz_rotacao_z(rotacao.z));
-    matriz = lume_matriz_multiplicar(matriz, lume_matriz_rotacao_y(rotacao.y));
-    matriz = lume_matriz_multiplicar(matriz, lume_matriz_rotacao_x(rotacao.x));
-    return lume_matriz_multiplicar(matriz, lume_matriz_escala(escala));
+    LumeMat4 m = lume_mat4_identity();
+    m.values[0] = 2 / (d - e);
+    m.values[5] = 2 / (t - b);
+    m.values[10] = -2 / (l - p);
+    m.values[12] = -(d + e) / (d - e);
+    m.values[13] = -(t + b) / (t - b);
+    m.values[14] = -(l + p) / (l - p);
+    return m;
 }
 
-LumeMatriz4 lume_matriz_perspectiva(float campo_visao, float proporcao, float proximo, float distante)
+bool lume_mat4_inverse(LumeMat4 matriz, LumeMat4 *resultado)
 {
-    LumeMatriz4 matriz = {{0}};
-    float escala = 1.0f / tanf(campo_visao * 0.5f);
-    matriz.valor[0] = escala / proporcao;
-    matriz.valor[5] = escala;
-    matriz.valor[10] = (distante + proximo) / (proximo - distante);
-    matriz.valor[11] = -1.0f;
-    matriz.valor[14] = (2.0f * distante * proximo) / (proximo - distante);
-    return matriz;
-}
-
-LumeMatriz4 lume_matriz_ortografica(float esquerda, float direita, float inferior, float superior, float proximo,
-                                    float distante)
-{
-    LumeMatriz4 matriz = lume_matriz_identidade();
-    matriz.valor[0] = 2.0f / (direita - esquerda);
-    matriz.valor[5] = 2.0f / (superior - inferior);
-    matriz.valor[10] = -2.0f / (distante - proximo);
-    matriz.valor[12] = -(direita + esquerda) / (direita - esquerda);
-    matriz.valor[13] = -(superior + inferior) / (superior - inferior);
-    matriz.valor[14] = -(distante + proximo) / (distante - proximo);
-    return matriz;
-}
-
-bool lume_matriz_inverter(LumeMatriz4 matriz, LumeMatriz4 *resultado)
-{
-    const float *m = matriz.valor;
-    float inversa[16];
-    float determinante;
-    int indice;
-
+    const float *m = matriz.values;
+    float i[16], d;
+    int n;
     if (!resultado)
-    {
         return false;
-    }
-
-    inversa[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] +
-                 m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
-    inversa[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] -
-                 m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
-    inversa[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] +
-                 m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
-    inversa[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] - m[8] * m[6] * m[13] -
-                  m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
-    inversa[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] -
-                 m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
-    inversa[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] +
-                 m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
-    inversa[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] -
-                 m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
-    inversa[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] +
-                  m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
-    inversa[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] +
-                 m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
-    inversa[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] -
-                 m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
-    inversa[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] +
-                  m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
-    inversa[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] -
-                  m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
-    inversa[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] -
-                 m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
-    inversa[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] +
-                 m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
-    inversa[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] -
-                  m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
-    inversa[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] +
-                  m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
-
-    determinante = m[0] * inversa[0] + m[1] * inversa[4] + m[2] * inversa[8] + m[3] * inversa[12];
-    if (fabsf(determinante) <= 0.000001f)
-    {
+    i[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] +
+           m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
+    i[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] -
+           m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
+    i[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] +
+           m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+    i[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] - m[8] * m[6] * m[13] -
+            m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
+    i[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] -
+           m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+    i[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] +
+           m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+    i[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] -
+           m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+    i[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] +
+            m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+    i[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] -
+           m[13] * m[3] * m[6];
+    i[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] -
+           m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+    i[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] +
+            m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+    i[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] -
+            m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+    i[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] +
+           m[9] * m[3] * m[6];
+    i[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] -
+           m[8] * m[3] * m[6];
+    i[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] +
+            m[8] * m[3] * m[5];
+    i[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] -
+            m[8] * m[2] * m[5];
+    d = m[0] * i[0] + m[1] * i[4] + m[2] * i[8] + m[3] * i[12];
+    if (fabsf(d) <= 0.000001f)
         return false;
-    }
-
-    determinante = 1.0f / determinante;
-    for (indice = 0; indice < 16; ++indice)
-    {
-        resultado->valor[indice] = inversa[indice] * determinante;
-    }
+    d = 1.0f / d;
+    for (n = 0; n < 16; ++n)
+        resultado->values[n] = i[n] * d;
     return true;
 }
 
-LumeVec3 lume_matriz_transformar_ponto(LumeMatriz4 matriz, LumeVec3 ponto)
+LumeVec3 lume_mat4_transform_point(LumeMat4 m, LumeVec3 p)
 {
-    return (LumeVec3){
-        matriz.valor[0] * ponto.x + matriz.valor[4] * ponto.y + matriz.valor[8] * ponto.z + matriz.valor[12],
-        matriz.valor[1] * ponto.x + matriz.valor[5] * ponto.y + matriz.valor[9] * ponto.z + matriz.valor[13],
-        matriz.valor[2] * ponto.x + matriz.valor[6] * ponto.y + matriz.valor[10] * ponto.z + matriz.valor[14]};
+    return (LumeVec3){m.values[0] * p.x + m.values[4] * p.y + m.values[8] * p.z + m.values[12],
+                      m.values[1] * p.x + m.values[5] * p.y + m.values[9] * p.z + m.values[13],
+                      m.values[2] * p.x + m.values[6] * p.y + m.values[10] * p.z + m.values[14]};
+}
+LumeVec3 lume_matriz_transformar_direcao(LumeMat4 m, LumeVec3 v)
+{
+    return (LumeVec3){m.values[0] * v.x + m.values[4] * v.y + m.values[8] * v.z,
+                      m.values[1] * v.x + m.values[5] * v.y + m.values[9] * v.z,
+                      m.values[2] * v.x + m.values[6] * v.y + m.values[10] * v.z};
 }
 
-LumeVec3 lume_matriz_transformar_direcao(LumeMatriz4 matriz, LumeVec3 direcao)
+LumeAabb lume_aabb_empty(void)
 {
-    return (LumeVec3){matriz.valor[0] * direcao.x + matriz.valor[4] * direcao.y + matriz.valor[8] * direcao.z,
-                      matriz.valor[1] * direcao.x + matriz.valor[5] * direcao.y + matriz.valor[9] * direcao.z,
-                      matriz.valor[2] * direcao.x + matriz.valor[6] * direcao.y + matriz.valor[10] * direcao.z};
+    return (LumeAabb){{FLT_MAX, FLT_MAX, FLT_MAX}, {-FLT_MAX, -FLT_MAX, -FLT_MAX}};
+}
+LumeAabb lume_aabb_expand_point(LumeAabb b, LumeVec3 p)
+{
+    b.min.x = fminf(b.min.x, p.x);
+    b.min.y = fminf(b.min.y, p.y);
+    b.min.z = fminf(b.min.z, p.z);
+    b.max.x = fmaxf(b.max.x, p.x);
+    b.max.y = fmaxf(b.max.y, p.y);
+    b.max.z = fmaxf(b.max.z, p.z);
+    return b;
+}
+LumeAabb lume_aabb_transform(LumeAabb b, LumeMat4 m)
+{
+    LumeAabb r = lume_aabb_empty();
+    int i;
+    for (i = 0; i < 8; ++i)
+        r = lume_aabb_expand_point(
+            r, lume_mat4_transform_point(m, (LumeVec3){(i & 1) ? b.max.x : b.min.x, (i & 2) ? b.max.y : b.min.y,
+                                                       (i & 4) ? b.max.z : b.min.z}));
+    return r;
+}
+bool lume_ray_intersect_aabb(LumeRay r, LumeAabb b, float *distancia)
+{
+    float tmin = 0.0f, tmax = FLT_MAX;
+    int eixo;
+    float o[3] = {r.origin.x, r.origin.y, r.origin.z}, d[3] = {r.direction.x, r.direction.y, r.direction.z};
+    float mn[3] = {b.min.x, b.min.y, b.min.z}, mx[3] = {b.max.x, b.max.y, b.max.z};
+    for (eixo = 0; eixo < 3; ++eixo)
+    {
+        if (fabsf(d[eixo]) < 0.000001f)
+        {
+            if (o[eixo] < mn[eixo] || o[eixo] > mx[eixo])
+                return false;
+        }
+        else
+        {
+            float a = (mn[eixo] - o[eixo]) / d[eixo], c = (mx[eixo] - o[eixo]) / d[eixo], troca;
+            if (a > c)
+            {
+                troca = a;
+                a = c;
+                c = troca;
+            }
+            tmin = fmaxf(tmin, a);
+            tmax = fminf(tmax, c);
+            if (tmin > tmax)
+                return false;
+        }
+    }
+    if (distancia)
+        *distancia = tmin;
+    return true;
+}
+
+LumeFrustum lume_frustum_from_matrix(LumeMat4 m)
+{
+    LumeFrustum f;
+    int i;
+    float *a = m.values;
+    float p[6][4] = {{a[3] + a[0], a[7] + a[4], a[11] + a[8], a[15] + a[12]},
+                     {a[3] - a[0], a[7] - a[4], a[11] - a[8], a[15] - a[12]},
+                     {a[3] + a[1], a[7] + a[5], a[11] + a[9], a[15] + a[13]},
+                     {a[3] - a[1], a[7] - a[5], a[11] - a[9], a[15] - a[13]},
+                     {a[3] + a[2], a[7] + a[6], a[11] + a[10], a[15] + a[14]},
+                     {a[3] - a[2], a[7] - a[6], a[11] - a[10], a[15] - a[14]}};
+    for (i = 0; i < 6; ++i)
+    {
+        float l = sqrtf(p[i][0] * p[i][0] + p[i][1] * p[i][1] + p[i][2] * p[i][2]);
+        f.planes[i].normal = (LumeVec3){p[i][0] / l, p[i][1] / l, p[i][2] / l};
+        f.planes[i].distance = p[i][3] / l;
+    }
+    return f;
+}
+bool lume_frustum_intersects_aabb(LumeFrustum f, LumeAabb b)
+{
+    int i;
+    for (i = 0; i < 6; ++i)
+    {
+        LumePlane p = f.planes[i];
+        LumeVec3 v = {p.normal.x >= 0 ? b.max.x : b.min.x, p.normal.y >= 0 ? b.max.y : b.min.y,
+                      p.normal.z >= 0 ? b.max.z : b.min.z};
+        if (lume_vec3_dot(p.normal, v) + p.distance < 0)
+            return false;
+    }
+    return true;
 }

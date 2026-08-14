@@ -2,9 +2,9 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
-static int falhas = 0;
-
+static int falhas;
 static void verificar(bool condicao, const char *mensagem)
 {
     if (!condicao)
@@ -13,7 +13,6 @@ static void verificar(bool condicao, const char *mensagem)
         ++falhas;
     }
 }
-
 static bool proximo(float a, float b)
 {
     return fabsf(a - b) < 0.0001f;
@@ -21,27 +20,33 @@ static bool proximo(float a, float b)
 
 int main(void)
 {
-    LumeMatriz4 identidade = lume_matriz_identidade();
-    LumeMatriz4 transformacao = lume_matriz_transformacao((LumeVec3){2.0f, 3.0f, 4.0f}, (LumeVec3){0.0f, 0.0f, 0.0f},
-                                                          (LumeVec3){1.0f, 1.0f, 1.0f});
-    LumeMatriz4 inversa;
-    LumeMatriz4 produto;
-    LumeVec3 ponto;
+    LumeMat4 identidade = lume_mat4_identity();
+    LumeMat4 transformacao = lume_mat4_transform((LumeVec3){2, 3, 4}, lume_quat_identity(), (LumeVec3){1, 1, 1});
+    LumeMat4 inversa;
+    LumeVec3 ponto = lume_mat4_transform_point(transformacao, (LumeVec3){1, 1, 1});
+    LumeAabb caixa = {{-1, -1, -1}, {1, 1, 1}};
+    LumeRay raio = {{0, 0, 4}, {0, 0, -1}};
+    float distancia = 0;
+    const LumeError *erro;
 
-    verificar(proximo(identidade.valor[0], 1.0f) && proximo(identidade.valor[15], 1.0f),
+    verificar(strcmp(lume_version_string(), "1.5.0") == 0, "Version string reports 1.5.0.");
+    verificar(proximo(identidade.values[0], 1) && proximo(identidade.values[15], 1),
               "Identity matrix has the expected diagonal.");
-    ponto = lume_matriz_transformar_ponto(transformacao, (LumeVec3){1.0f, 1.0f, 1.0f});
-    verificar(proximo(ponto.x, 3.0f) && proximo(ponto.y, 4.0f) && proximo(ponto.z, 5.0f),
+    verificar(proximo(ponto.x, 3) && proximo(ponto.y, 4) && proximo(ponto.z, 5),
               "Transform matrix translates a point.");
-    verificar(lume_matriz_inverter(transformacao, &inversa), "Transform matrix can be inverted.");
-    produto = lume_matriz_multiplicar(transformacao, inversa);
-    verificar(proximo(produto.valor[0], 1.0f) && proximo(produto.valor[5], 1.0f) && proximo(produto.valor[10], 1.0f) &&
-                  proximo(produto.valor[15], 1.0f),
-              "A matrix multiplied by its inverse is identity.");
+    verificar(lume_mat4_inverse(transformacao, &inversa), "Transform matrix can be inverted.");
+    verificar(lume_ray_intersect_aabb(raio, caixa, &distancia) && proximo(distancia, 3),
+              "Ray intersects an AABB at the expected distance.");
+    verificar(!lume_ray_intersect_aabb((LumeRay){{4, 4, 4}, {1, 0, 0}}, caixa, NULL), "Ray correctly misses an AABB.");
+    verificar(lume_result_string(LUME_ERROR_PARSE) && strcmp(lume_result_string(LUME_ERROR_PARSE), "Parse error") == 0,
+              "Result descriptions are English.");
+    lume_definir_erro(LUME_ERROR_PARSE, "test.parse", "asset.gltf", 7, 3, "Invalid test document.");
+    erro = lume_error_last();
+    verificar(erro->code == LUME_ERROR_PARSE && erro->line == 7 && strcmp(erro->operation, "test.parse") == 0 &&
+                  strstr(erro->message, "Invalid test document") != NULL,
+              "Structured diagnostics preserve code, location, operation, and English message.");
 
-    if (falhas == 0)
-    {
+    if (!falhas)
         puts("All unit tests passed.");
-    }
-    return falhas == 0 ? 0 : 1;
+    return falhas ? 1 : 0;
 }
