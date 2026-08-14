@@ -74,6 +74,7 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/thisistherk/fast_obj.git
     GIT_TAG 42629f744269e004907a6fb4f16c6c7f69acc586
     GIT_SHALLOW FALSE
+    SOURCE_SUBDIR lume-no-cmake-project
 )
 FetchContent_Declare(
     tinycthread

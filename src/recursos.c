@@ -428,6 +428,64 @@ LumeResult lume_shader_create(LumeApp *a, const LumeShaderConfig *cfg, LumeShade
     *saida = s;
     return LUME_SUCCESS;
 }
+
+static LumeResult lume_localizar_uniforme(LumeShader *shader, const char *nome, GLint *saida)
+{
+    if (!shader || !nome || !saida)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "shader.set_uniform", NULL, 0, 0,
+                                 "A shader, uniform name, and value are required.");
+    *saida = glGetUniformLocation(shader->programa, nome);
+    if (*saida < 0)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "shader.set_uniform", NULL, 0, 0,
+                                 "Shader uniform '%s' does not exist or was optimized out.", nome);
+    glUseProgram(shader->programa);
+    return LUME_SUCCESS;
+}
+
+LumeResult lume_shader_set_float(LumeShader *shader, const char *nome, float valor)
+{
+    GLint local;
+    LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
+    if (resultado == LUME_SUCCESS)
+        glUniform1f(local, valor);
+    return resultado;
+}
+
+LumeResult lume_shader_set_vec2(LumeShader *shader, const char *nome, LumeVec2 valor)
+{
+    GLint local;
+    LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
+    if (resultado == LUME_SUCCESS)
+        glUniform2f(local, valor.x, valor.y);
+    return resultado;
+}
+
+LumeResult lume_shader_set_vec3(LumeShader *shader, const char *nome, LumeVec3 valor)
+{
+    GLint local;
+    LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
+    if (resultado == LUME_SUCCESS)
+        glUniform3f(local, valor.x, valor.y, valor.z);
+    return resultado;
+}
+
+LumeResult lume_shader_set_vec4(LumeShader *shader, const char *nome, LumeVec4 valor)
+{
+    GLint local;
+    LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
+    if (resultado == LUME_SUCCESS)
+        glUniform4f(local, valor.x, valor.y, valor.z, valor.w);
+    return resultado;
+}
+
+LumeResult lume_shader_set_mat4(LumeShader *shader, const char *nome, LumeMat4 valor)
+{
+    GLint local;
+    LumeResult resultado = lume_localizar_uniforme(shader, nome, &local);
+    if (resultado == LUME_SUCCESS)
+        glUniformMatrix4fv(local, 1, GL_FALSE, valor.values);
+    return resultado;
+}
 LumeResult lume_pipeline_create(LumeApp *a, const LumePipelineConfig *cfg, LumePipeline **saida)
 {
     LumePipelineConfig c = cfg ? *cfg : lume_pipeline_config_default();

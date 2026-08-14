@@ -138,6 +138,11 @@ LUME_API LumeResult lume_material_set_texture(LumeMaterial *material, LumeTextur
 LUME_API LumeResult lume_shader_create(LumeApp *app, const LumeShaderConfig *config, LumeShader **out_shader);
 LUME_API void lume_shader_retain(LumeShader *shader);
 LUME_API void lume_shader_release(LumeShader *shader);
+LUME_API LumeResult lume_shader_set_float(LumeShader *shader, const char *name, float value);
+LUME_API LumeResult lume_shader_set_vec2(LumeShader *shader, const char *name, LumeVec2 value);
+LUME_API LumeResult lume_shader_set_vec3(LumeShader *shader, const char *name, LumeVec3 value);
+LUME_API LumeResult lume_shader_set_vec4(LumeShader *shader, const char *name, LumeVec4 value);
+LUME_API LumeResult lume_shader_set_mat4(LumeShader *shader, const char *name, LumeMat4 value);
 LUME_API LumeResult lume_pipeline_create(LumeApp *app, const LumePipelineConfig *config, LumePipeline **out_pipeline);
 LUME_API void lume_pipeline_retain(LumePipeline *pipeline);
 LUME_API void lume_pipeline_release(LumePipeline *pipeline);

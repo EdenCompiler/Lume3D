@@ -462,36 +462,41 @@ LumeResult lume_renderer_render(LumeRenderer *r, LumeScene *c, LumeNode *camera,
     glClearColor(r->aplicativo->cor_limpeza.r, r->aplicativo->cor_limpeza.g, r->aplicativo->cor_limpeza.b,
                  r->aplicativo->cor_limpeza.a);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glUseProgram(r->programa_padrao);
-    lume_uniforme_mat(r->programa_padrao, "uView", vista);
-    lume_uniforme_mat(r->programa_padrao, "uProjection", proj);
-    glUniform3f(glGetUniformLocation(r->programa_padrao, "uCamera"), cam.x, cam.y, cam.z);
-    glUniform1i(glGetUniformLocation(r->programa_padrao, "uBaseTexture"), 0);
-    lume_enviar_luzes(r->programa_padrao, c);
     for (i = 0; i < q; ++i)
     {
         LumeNode *n = itens[i].no;
         LumeGeometry *g = n->dados.malha.geometria;
         LumeMaterial *m = n->dados.malha.material;
+        LumePipeline *pipeline = m->tipo == LUME_MATERIAL_CUSTOM ? m->pipeline : NULL;
+        GLuint programa = pipeline ? pipeline->shader->programa : r->programa_padrao;
         uint32_t instancias = n->tipo == LUME_NO_MALHA_INSTANCIADA ? n->dados.malha.quantidade_instancias : 1;
         if (!lume_enviar_geometria_gpu(g))
         {
             free(itens);
             return LUME_ERROR_GPU;
         }
-        lume_uniforme_mat(r->programa_padrao, "uModel", n->matriz_mundo);
-        glUniform4f(glGetUniformLocation(r->programa_padrao, "uBaseColor"), m->cor_base.r, m->cor_base.g, m->cor_base.b,
-                    m->cor_base.a);
-        glUniform1i(glGetUniformLocation(r->programa_padrao, "uMaterialType"), m->tipo);
-        glUniform1f(glGetUniformLocation(r->programa_padrao, "uMetallic"), m->metalico);
-        glUniform1f(glGetUniformLocation(r->programa_padrao, "uRoughness"), m->rugosidade);
-        glUniform1f(glGetUniformLocation(r->programa_padrao, "uAlphaCutoff"), m->corte_alpha);
-        glUniform1i(glGetUniformLocation(r->programa_padrao, "uAlphaMode"), m->modo_alpha);
-        glUniform1i(glGetUniformLocation(r->programa_padrao, "uHasTexture"), m->textura_base != NULL);
-        glUniform1i(glGetUniformLocation(r->programa_padrao, "uInstanced"), n->tipo == LUME_NO_MALHA_INSTANCIADA);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, m->textura_base ? m->textura_base->identificador : 0);
-        if (m->modo_alpha == LUME_ALPHA_BLEND)
+        glUseProgram(programa);
+        lume_uniforme_mat(programa, "uModel", n->matriz_mundo);
+        lume_uniforme_mat(programa, "uView", vista);
+        lume_uniforme_mat(programa, "uProjection", proj);
+        glUniform3f(glGetUniformLocation(programa, "uCamera"), cam.x, cam.y, cam.z);
+        glUniform1i(glGetUniformLocation(programa, "uInstanced"), n->tipo == LUME_NO_MALHA_INSTANCIADA);
+        if (!pipeline)
+        {
+            glUniform4f(glGetUniformLocation(programa, "uBaseColor"), m->cor_base.r, m->cor_base.g, m->cor_base.b,
+                        m->cor_base.a);
+            glUniform1i(glGetUniformLocation(programa, "uMaterialType"), m->tipo);
+            glUniform1f(glGetUniformLocation(programa, "uMetallic"), m->metalico);
+            glUniform1f(glGetUniformLocation(programa, "uRoughness"), m->rugosidade);
+            glUniform1f(glGetUniformLocation(programa, "uAlphaCutoff"), m->corte_alpha);
+            glUniform1i(glGetUniformLocation(programa, "uAlphaMode"), m->modo_alpha);
+            glUniform1i(glGetUniformLocation(programa, "uHasTexture"), m->textura_base != NULL);
+            glUniform1i(glGetUniformLocation(programa, "uBaseTexture"), 0);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m->textura_base ? m->textura_base->identificador : 0);
+            lume_enviar_luzes(programa, c);
+        }
+        if (pipeline ? pipeline->mistura : m->modo_alpha == LUME_ALPHA_BLEND)
         {
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -502,10 +507,16 @@ LumeResult lume_renderer_render(LumeRenderer *r, LumeScene *c, LumeNode *camera,
             glDisable(GL_BLEND);
             glDepthMask(GL_TRUE);
         }
-        if (m->dupla_face)
+        if (pipeline ? !pipeline->descartar_costas : m->dupla_face)
             glDisable(GL_CULL_FACE);
         else
             glEnable(GL_CULL_FACE);
+        if (pipeline ? pipeline->teste_profundidade : true)
+            glEnable(GL_DEPTH_TEST);
+        else
+            glDisable(GL_DEPTH_TEST);
+        if (pipeline)
+            glDepthMask(pipeline->escrita_profundidade ? GL_TRUE : GL_FALSE);
         glPolygonMode(GL_FRONT_AND_BACK, m->aramado ? GL_LINE : GL_FILL);
         glBindVertexArray(g->vao);
         if (n->tipo == LUME_NO_MALHA_INSTANCIADA)

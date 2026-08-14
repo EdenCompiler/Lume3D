@@ -4,6 +4,7 @@
 .cache/
 *.o
 *.obj
+!tests/fixtures/*.obj
 *.a
 *.lib
 *.so
