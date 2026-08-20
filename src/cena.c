@@ -268,9 +268,32 @@ LumeMat4 lume_node_world_matrix(const LumeNode *n)
 }
 LumeAabb lume_node_world_bounds(const LumeNode *n)
 {
+    LumeNode *no_mutavel;
+    LumeAabb limites;
+    uint32_t indice;
     if (!n || (n->tipo != LUME_NO_MALHA && n->tipo != LUME_NO_MALHA_INSTANCIADA))
         return lume_aabb_empty();
-    return lume_aabb_transform(n->dados.malha.geometria->limites, lume_node_world_matrix(n));
+    if (n->tipo == LUME_NO_MALHA)
+        return lume_aabb_transform(n->dados.malha.geometria->limites, lume_node_world_matrix(n));
+
+    /* As instancias compartilham a malha, mas cada matriz amplia os limites locais do conjunto. */
+    no_mutavel = (LumeNode *)n;
+    if (no_mutavel->dados.malha.limites_instancias_sujos)
+    {
+        limites = lume_aabb_empty();
+        for (indice = 0; indice < n->dados.malha.quantidade_instancias; ++indice)
+        {
+            LumeAabb instancia = lume_aabb_transform(n->dados.malha.geometria->limites,
+                                                     n->dados.malha.instancias[indice]);
+            limites = lume_aabb_expand_point(limites, instancia.min);
+            limites = lume_aabb_expand_point(limites, instancia.max);
+        }
+        no_mutavel->dados.malha.limites_instancias = limites;
+        no_mutavel->dados.malha.limites_instancias_sujos = false;
+    }
+    if (n->dados.malha.quantidade_instancias == 0)
+        return lume_aabb_empty();
+    return lume_aabb_transform(n->dados.malha.limites_instancias, lume_node_world_matrix(n));
 }
 
 LumeResult lume_node_look_at(LumeNode *n, LumeVec3 alvo)
@@ -430,6 +453,8 @@ LumeResult lume_instanced_mesh_create(LumeScene *c, LumeGeometry *g, LumeMateria
     (*s)->tipo = LUME_NO_MALHA_INSTANCIADA;
     (*s)->dados.malha.capacidade_instancias = cap;
     (*s)->dados.malha.quantidade_instancias = cap;
+    (*s)->dados.malha.limites_instancias = lume_aabb_empty();
+    (*s)->dados.malha.limites_instancias_sujos = true;
     (*s)->dados.malha.instancias = calloc(cap, sizeof(LumeMat4));
     if (cap && !(*s)->dados.malha.instancias)
     {
@@ -451,6 +476,7 @@ LumeResult lume_instanced_mesh_set_transform(LumeNode *n, uint32_t i, LumeMat4 t
         return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "mesh.set_instance", NULL, 0, 0,
                                  "Instance index is outside the mesh capacity.");
     n->dados.malha.instancias[i] = t;
+    n->dados.malha.limites_instancias_sujos = true;
     return LUME_SUCCESS;
 }
 

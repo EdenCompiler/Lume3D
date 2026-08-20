@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.1 — 2026-08-20
+
+- added self-contained solar-system, instanced-city, and interactive PBR lighting-studio examples;
+- added high-quality defaults plus `--low` and hidden `--smoke` profiles to the three new examples;
+- fixed instanced-city fullscreen UV scaling, background depth classification, stretched window patterns, overlay depth, and quality-dependent camera framing;
+- corrected instanced-mesh world bounds to include every instance transform with cached invalidation;
+- expanded example smoke and renderer regression coverage, bilingual documentation, and SDK packaging;
+- made release archive versions derive from validated Git tags instead of hardcoded filenames.
+
 ## 1.5.0 — 2026-08-13
 
 - redesigned the public API around modular headers, `LumeResult`, structured English errors, and opaque reference-counted resources;

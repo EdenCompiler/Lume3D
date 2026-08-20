@@ -24,8 +24,8 @@ extern "C"
 
 #define LUME_VERSION_MAJOR 1
 #define LUME_VERSION_MINOR 5
-#define LUME_VERSION_PATCH 0
-#define LUME_VERSION_STRING "1.5.0"
+#define LUME_VERSION_PATCH 1
+#define LUME_VERSION_STRING "1.5.1"
 
 typedef struct LumeApp LumeApp;
 typedef struct LumeRenderer LumeRenderer;

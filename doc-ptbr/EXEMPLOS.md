@@ -1,6 +1,6 @@
 # Exemplos práticos do Lume3D
 
-Lume3D 1.5 inclui dois exemplos focados. Ambos são cenas animadas completas, construídas apenas com a API pública e shaders GLSL customizados; nenhum depende de assets baixados.
+Lume3D 1.5.1 inclui cinco exemplos focados. Todas as cenas usam apenas a API pública e funcionam offline, sem assets baixados.
 
 Compile e execute:
 
@@ -9,8 +9,11 @@ Compile e execute:
 
     ./build/lume_example_ocean
     ./build/lume_example_black_hole
+    ./build/lume_example_solar_system
+    ./build/lume_example_instanced_city
+    ./build/lume_example_lighting_studio
 
-Pressione Escape para fechar. Passe `--smoke` para criar uma janela oculta, renderizar dois frames e sair; CTest usa esse modo nos dois exemplos.
+Pressione Escape para fechar. Todos os exemplos aceitam `--smoke`, que cria uma janela oculta, renderiza dois frames e sai. Os três exemplos da 1.5.1 também aceitam `--low`, selecionando janela de 800×450, geometria mais leve, mapas de sombra de 512 pixels e bloom desligado. CTest usa o modo smoke nos cinco programas.
 
 ## Oceano com shaders
 
@@ -52,3 +55,33 @@ O exemplo serve como modelo para:
 - simulações numericamente integradas em GLSL;
 - constantes e condições de parada com significado físico;
 - uniformes que acompanham resize.
+
+## Sistema solar procedural
+
+Fonte: `examples/sistema_solar.c`
+
+O sistema solar constrói planetas, luas e pivôs orbitais com nós comuns da cena. Uma textura equiretangular da Terra gerada em runtime demonstra criação de texturas, enquanto um campo estelar instanciado com distribuição de Fibonacci forma o fundo. Planetas PBR, sol unlit em HDR, luz pontual, ACES, bloom e órbitas desenhadas por debug completam a cena sem assets externos.
+
+Controles: arrastar com o botão esquerdo orbita, botão do meio desloca, a roda aplica zoom, Espaço pausa, Cima/Baixo altera a velocidade da simulação, `O` alterna as órbitas, `R` restaura e Esc sai.
+
+O exemplo serve como modelo para hierarquia de cena, transformações entre pai e filho, texturas procedurais, geometria compartilhada, tipos diferentes de material, linhas de debug e câmera orbital.
+
+## Cidade procedural instanciada
+
+Fonte: `examples/cidade_instanciada.c`
+
+A cidade gera deterministicamente uma grade de ruas e milhares de transformações de prédios. Uma malha instanciada com material custom renderiza o horizonte urbano em uma chamada de desenho para os prédios, com janelas procedurais que respeitam a escala e névoa por distância; faixas instanciadas com teste de profundidade e o piso PBR recebem sombras direcionais em cascata. Um passe LDR sensível à profundidade preenche apenas pixels intocados com um céu procedural de crepúsculo, preservando geometria distante. Os limites agregados corrigidos mantêm todo o conjunto disponível para culling e consultas espaciais.
+
+Controles: WASD move, Q/E altera a altura, arrastar com o botão esquerdo olha ao redor, a roda ajusta a velocidade base, Shift acelera, `I` alterna estatísticas periódicas, `R` restaura e Esc sai.
+
+O exemplo serve como modelo para instancing em hardware, geração determinística, shaders custom sensíveis à escala, pós-processamento orientado por profundidade, câmera livre, sombras, bounds seguros para culling e `LumeFrameStats`.
+
+## Estúdio interativo de iluminação PBR
+
+Fonte: `examples/estudio_iluminacao.c`
+
+O estúdio organiza uma tabela 7×6 de materiais: as colunas aumentam a resposta metálica e as linhas aumentam a rugosidade. Luzes ambiente, direcional, pontuais móveis e spot com sombra iluminam a tabela, o piso e o fundo pelo renderizador HDR integrado. A seleção com o botão direito constrói um raio da câmera, chama `lume_scene_raycast`, destaca a esfera escolhida e pode desenhar seu AABB e eixos.
+
+Controles: arrastar com o botão esquerdo orbita, botão do meio desloca, a roda aplica zoom, botão direito seleciona, `B` alterna bloom, `F` alterna FXAA, `L` pausa as luzes móveis, `D` alterna o debug, `R` restaura e Esc sai.
+
+O exemplo serve como modelo para estudo de parâmetros PBR, os quatro tipos de luz, sombras direcionais e spot, reconfiguração do renderizador em runtime, picking pelo mouse e primitivas de debug.

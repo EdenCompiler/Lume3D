@@ -30,7 +30,7 @@ int main(void)
     float mouse_x = 1, mouse_y = 1;
     const LumeError *erro;
 
-    verificar(strcmp(lume_version_string(), "1.5.0") == 0, "Version string reports 1.5.0.");
+    verificar(strcmp(lume_version_string(), "1.5.1") == 0, "Version string reports 1.5.1.");
     verificar(proximo(identidade.values[0], 1) && proximo(identidade.values[15], 1),
               "Identity matrix has the expected diagonal.");
     verificar(proximo(ponto.x, 3) && proximo(ponto.y, 4) && proximo(ponto.z, 5),

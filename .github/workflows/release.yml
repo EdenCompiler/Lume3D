@@ -9,7 +9,28 @@ permissions:
   contents: write
 
 jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate tag against project version
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import re
+
+          source = pathlib.Path("CMakeLists.txt").read_text(encoding="utf-8")
+          match = re.search(r"project\(Lume3D VERSION ([0-9.]+)", source)
+          project_version = match.group(1) if match else ""
+          tag_version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          if project_version != tag_version:
+              raise SystemExit(f"Tag version {tag_version} does not match project version {project_version}.")
+          print(f"Publishing Lume3D {project_version}.")
+          PY
+
   linux-sdk:
+    needs: validate-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -32,16 +53,18 @@ jobs:
           cp -a shared/lib/liblume3d.so* sdk/lib/shared/
       - name: Add runnable examples and fixtures
         run: |
+          version="${GITHUB_REF_NAME#v}"
           mkdir -p sdk/bin sdk/share/Lume3D/tests
           cp build-static/lume_example_* sdk/bin/
           cp -a tests/fixtures sdk/share/Lume3D/tests/
-          tar -czf lume3d-1.5.0-linux-x86_64.tar.gz -C sdk .
+          tar -czf "lume3d-${version}-linux-x86_64.tar.gz" -C sdk .
       - uses: actions/upload-artifact@v5
         with:
           name: linux-sdk
-          path: lume3d-1.5.0-linux-x86_64.tar.gz
+          path: lume3d-*-linux-x86_64.tar.gz
 
   windows-sdk:
+    needs: validate-version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -67,14 +90,15 @@ jobs:
       - name: Add runnable examples and fixtures
         shell: pwsh
         run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
           New-Item -ItemType Directory -Force sdk/bin, sdk/share/Lume3D/tests | Out-Null
           Copy-Item build-static/Release/lume_example_*.exe sdk/bin/
           Copy-Item -Recurse tests/fixtures sdk/share/Lume3D/tests/
-          Compress-Archive -Path sdk/* -DestinationPath lume3d-1.5.0-windows-x86_64.zip
+          Compress-Archive -Path sdk/* -DestinationPath "lume3d-$version-windows-x86_64.zip"
       - uses: actions/upload-artifact@v5
         with:
           name: windows-sdk
-          path: lume3d-1.5.0-windows-x86_64.zip
+          path: lume3d-*-windows-x86_64.zip
 
   publish:
     needs: [linux-sdk, windows-sdk]
@@ -92,8 +116,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "${GITHUB_REF_NAME}"
-          artifacts/lume3d-1.5.0-linux-x86_64.tar.gz
-          artifacts/lume3d-1.5.0-windows-x86_64.zip
+          artifacts/lume3d-*-linux-x86_64.tar.gz
+          artifacts/lume3d-*-windows-x86_64.zip
           artifacts/SHA256SUMS
           --title "Lume3D ${GITHUB_REF_NAME#v}"
           --notes-file RELEASE_NOTES.md

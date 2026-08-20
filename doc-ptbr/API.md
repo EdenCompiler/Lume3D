@@ -59,7 +59,7 @@ O sistema é destro, +Y aponta para cima, câmeras olham pelo −Z local, ângul
 
 Câmeras perspectiva e ortográfica usam structs de configuração com construtores padrão. Aspect zero usa a proporção do framebuffer. Há luzes ambiente, directional, point e spot. Configurações directional e spot podem habilitar sombras.
 
-`lume_scene_raycast` testa AABBs mundiais de meshes visíveis e retorna `LumeRaycastHit` do mais próximo ao distante. O módulo math inclui vetores, quaternions, matrizes, inversão/transformação, rays, AABBs, frusta e interseções.
+`lume_scene_raycast` testa AABBs mundiais de meshes visíveis e retorna `LumeRaycastHit` do mais próximo ao distante. Em uma mesh instanciada, `lume_node_world_bounds` mantém em cache a união das transformações de todas as instâncias e invalida esse agregado quando uma instância muda; assim, o raycast testa o conjunto completo como um único nó. O módulo math inclui vetores, quaternions, matrizes, inversão/transformação, rays, AABBs, frusta e interseções.
 
 ## Recursos
 

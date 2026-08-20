@@ -8,20 +8,20 @@
 
 Lume3D is a native C11 3D library that brings an approachable scene, camera, geometry, material, light, asset, animation, and render flow to desktop applications without a browser or JavaScript runtime.
 
-**Current stable release: 1.5.0**
+**Current stable release: 1.5.1**
 
-![Lume3D version](https://img.shields.io/badge/Lume3D-1.5.0-blue)
+![Lume3D version](https://img.shields.io/badge/Lume3D-1.5.1-blue)
 ![C](https://img.shields.io/badge/C-11-informational)
 ![OpenGL](https://img.shields.io/badge/OpenGL-3.3-informational)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-## What 1.5.0 means
+## What 1.5.1 means
 
 Lume3D 1.5 is a major API and renderer expansion. It adds modular public headers, structured results and English diagnostics, reference-counted resources, quaternions and spatial queries, glTF/GLB/OBJ assets, transform animation, asynchronous loading, cache/hot reload, PBR/Phong/unlit/custom materials, HDR and post-processing, cascaded directional and spot shadows, instancing, culling, raycasts, frame statistics, and debug primitives.
 
 The public API, runtime errors, build messages, tests, and example output use English. Private implementation identifiers and source comments use Brazilian Portuguese so the engine remains readable to Portuguese-speaking C developers without limiting its international API.
 
-| Subsystem | 1.5.0 status |
+| Subsystem | 1.5.1 status |
 | --- | --- |
 | Core | C11 runtime, stateful input, structured `LumeResult`/`LumeError`, thread-local diagnostics, leak reporting |
 | Scene | Hierarchy, quaternion transforms, perspective/orthographic cameras, four light types, bounds and raycasts |
@@ -31,7 +31,7 @@ The public API, runtime errors, build messages, tests, and example output use En
 | Scale | Instanced meshes, frustum culling, three directional cascades, four spot shadow maps, frame statistics |
 | Platforms | Linux GCC/Clang and Windows MSVC/MinGW CMake builds |
 
-## 1.5.0 release highlights
+## 1.5 release highlights
 
 - modular `core`, `math`, `scene`, `render`, `assets`, `animation`, and `debug` headers plus `lume.h`;
 - type-safe output parameters and actionable English errors with operation/path/line/column context;
@@ -39,7 +39,7 @@ The public API, runtime errors, build messages, tests, and example output use En
 - reference-counted geometry, textures, materials, shaders, pipelines, targets, environments, and models;
 - metallic/roughness PBR, Phong, unlit, custom GLSL, HDR targets, ACES, bloom, FXAA, and pass chaining;
 - three-cascade sun shadows, up to four shadowed spot lights, hardware instancing, and culling;
-- practical shader ocean and numerically integrated Schwarzschild black-hole examples;
+- five practical examples covering shaders, numerical simulation, hierarchy, procedural textures, instancing, PBR lighting, shadows, picking, and debug drawing;
 - device-free tests, hidden-window rendering tests, example smoke tests, and multi-toolchain CI.
 
 ## Installation
@@ -66,7 +66,7 @@ target_link_libraries(my_application PRIVATE Lume3D::lume3d)
 
 | CMake option | Default | Purpose |
 | --- | --- | --- |
-| `LUME_BUILD_EXAMPLES` | `ON` | Build the two practical shader examples |
+| `LUME_BUILD_EXAMPLES` | `ON` | Build the five practical examples |
 | `LUME_BUILD_TESTS` | `ON` | Build unit, renderer, and example smoke tests |
 | `LUME_WARNINGS_AS_ERRORS` | `OFF` | Promote Lume3D compiler warnings to errors |
 | `BUILD_SHARED_LIBS` | `OFF` | Build shared rather than static libraries |
@@ -108,10 +108,15 @@ int main(void)
 
     ./build/lume_example_ocean
     ./build/lume_example_black_hole
+    ./build/lume_example_solar_system
+    ./build/lume_example_instanced_city
+    ./build/lume_example_lighting_studio
 
 The ocean uses true 3D Gerstner displacement, finite-difference normals, Fresnel water, crest foam, sun glitter, and a procedural sky in the low-horizon camera style of the supplied video reference.
 
 The black-hole example ports the supplied Schwarzschild C ray tracer into a normalized GLSL geodesic integrator, reproducing its compact heated disk, rear companion, central shadow, and gravity grid. Its left-drag orbit, middle-drag pan, wheel zoom, reset, pause, grid toggle, and exit controls are preserved; its limits relative to a full Kerr solver are documented.
+
+The three 1.5.1 additions demonstrate hierarchical orbital scenes with procedural planet textures, a flyable hardware-instanced city, and an interactive PBR lighting laboratory with shadows, ray picking, and debug overlays. They default to high quality and accept `--low` for software-rendered or lower-power systems.
 
 See the [example guide](doc-en/EXAMPLES.md) for the implementation and physics boundaries.
 
@@ -146,15 +151,15 @@ Lume3D is available under the [MIT License](LICENSE).
 
 Lume3D é uma biblioteca 3D nativa C11 que leva às aplicações desktop um fluxo acessível de cena, câmera, geometria, material, luz, assets, animação e renderização sem navegador ou runtime JavaScript.
 
-**Versão estável atual: 1.5.0**
+**Versão estável atual: 1.5.1**
 
-## O que 1.5.0 significa
+## O que 1.5.1 significa
 
 Lume3D 1.5 é uma grande expansão da API e do renderizador. Ela adiciona headers públicos modulares, resultados estruturados e diagnósticos em inglês, recursos com contagem de referências, quaternions e consultas espaciais, assets glTF/GLB/OBJ, animação de transformações, carregamento assíncrono, cache/hot reload, materiais PBR/Phong/unlit/custom, HDR e pós-processamento, sombras direcionais em cascata e spot, instancing, culling, raycasts, estatísticas e primitivas de debug.
 
 A API pública, erros de runtime, mensagens de build, testes e saídas dos exemplos usam inglês. Identificadores privados e comentários do código-fonte usam português brasileiro, mantendo a engine legível para desenvolvedores lusófonos sem limitar sua API internacional.
 
-| Subsistema | Estado na 1.5.0 |
+| Subsistema | Estado na 1.5.1 |
 | --- | --- |
 | Core | Runtime C11, input stateful, `LumeResult`/`LumeError`, diagnósticos por thread e relatório de leaks |
 | Cena | Hierarquia, quaternions, duas câmeras, quatro tipos de luz, bounds e raycasts |
@@ -188,10 +193,15 @@ Consulte [Compilando o Lume3D](doc-ptbr/COMPILACAO.md) para Linux, Windows, sani
 
     ./build/lume_example_ocean
     ./build/lume_example_black_hole
+    ./build/lume_example_solar_system
+    ./build/lume_example_instanced_city
+    ./build/lume_example_lighting_studio
 
 O oceano usa deslocamento Gerstner 3D, normais por diferenças finitas, água Fresnel, espuma nas cristas, brilho solar e céu procedural no estilo de câmera de horizonte baixo da referência em vídeo.
 
 O exemplo de buraco negro porta o ray tracer C de Schwarzschild fornecido para um integrador GLSL de geodésicas normalizado, reproduzindo seu disco compacto aquecido, corpo companheiro traseiro, sombra central e grade gravitacional. Seus controles de órbita com arraste esquerdo, pan com arraste central, zoom pela roda, restauração, pausa, alternância da grade e saída foram preservados; seus limites frente a um solver Kerr completo estão documentados.
+
+As três adições da 1.5.1 demonstram cenas orbitais hierárquicas com texturas procedurais de planetas, uma cidade instanciada explorável e um laboratório interativo de iluminação PBR com sombras, seleção por raycast e overlays de debug. Elas usam alta qualidade por padrão e aceitam `--low` em sistemas com renderização por software ou menor potência.
 
 Consulte o [guia dos exemplos](doc-ptbr/EXEMPLOS.md) para os detalhes e limites físicos.
 

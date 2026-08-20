@@ -1,6 +1,6 @@
 # Lume3D practical examples
 
-Lume3D 1.5 ships two focused examples. Both are complete animated scenes built only with the public API and custom GLSL shaders; neither depends on downloaded art assets.
+Lume3D 1.5.1 ships five focused examples. Every scene is built only with the public API and works offline without downloaded art assets.
 
 Build and run them:
 
@@ -9,8 +9,11 @@ Build and run them:
 
     ./build/lume_example_ocean
     ./build/lume_example_black_hole
+    ./build/lume_example_solar_system
+    ./build/lume_example_instanced_city
+    ./build/lume_example_lighting_studio
 
-Press Escape to close. Pass `--smoke` to create a hidden window, render two frames, and exit; CTest runs this mode for both examples.
+Press Escape to close. Every example accepts `--smoke` to create a hidden window, render two frames, and exit. The three 1.5.1 examples also accept `--low`, which selects an 800×450 window, lighter geometry, 512-pixel shadow maps, and no bloom. CTest runs smoke mode for all five programs.
 
 ## Shader ocean
 
@@ -52,3 +55,33 @@ This example is useful as a template for:
 - numerically integrated simulations in GLSL;
 - physically meaningful constants and stopping conditions;
 - resize-aware shader uniforms.
+
+## Procedural solar system
+
+Source: `examples/sistema_solar.c`
+
+The solar system builds planets, moons, and orbital pivots from ordinary scene nodes. A generated equirectangular Earth texture demonstrates runtime texture creation, while a Fibonacci-distributed instanced star field supplies the background. PBR planets, an HDR unlit sun, a point light, ACES, bloom, and debug orbit paths complete the scene without external assets.
+
+Controls: left-drag orbits, middle-drag pans, the wheel zooms, Space pauses, Up/Down changes simulation speed, `O` toggles orbit paths, `R` resets, and Esc exits.
+
+This example is useful as a template for scene hierarchy, parent/child transforms, procedural textures, shared geometry, mixed material types, debug lines, and an orbit camera.
+
+## Instanced procedural city
+
+Source: `examples/cidade_instanciada.c`
+
+The city deterministically generates a street grid and thousands of building transforms. One custom-material instanced mesh renders the skyline in one building draw, with scale-aware procedural windows and distance fog; depth-tested instanced lane markers and the PBR ground receive cascaded directional shadows. A depth-aware LDR pass fills only untouched pixels with a procedural twilight sky, preserving distant geometry. The corrected aggregate instance bounds keep the whole generated layout available to culling and spatial queries.
+
+Controls: WASD moves, Q/E changes altitude, left-drag looks around, the wheel adjusts base speed, Shift boosts speed, `I` toggles periodic frame statistics, `R` resets, and Esc exits.
+
+This example is useful as a template for hardware instancing, deterministic generation, scale-aware custom shaders, depth-aware post-processing, fly cameras, shadows, culling-safe bounds, and `LumeFrameStats`.
+
+## Interactive PBR lighting studio
+
+Source: `examples/estudio_iluminacao.c`
+
+The studio arranges a 7×6 material chart whose columns increase metallic response and whose rows increase roughness. Ambient, directional, moving point, and shadowed spot lights illuminate the chart, floor, and backdrop through the built-in HDR renderer. Right-click selection constructs a camera ray, calls `lume_scene_raycast`, highlights the chosen sphere, and optionally draws its AABB and axes.
+
+Controls: left-drag orbits, middle-drag pans, the wheel zooms, right-click selects, `B` toggles bloom, `F` toggles FXAA, `L` pauses the moving lights, `D` toggles debug drawing, `R` resets, and Esc exits.
+
+This example is useful as a template for PBR parameter studies, all four light types, cascaded and spot shadows, runtime renderer reconfiguration, mouse picking, and debug primitives.

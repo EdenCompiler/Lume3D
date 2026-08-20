@@ -59,7 +59,7 @@ The coordinate system is right-handed, +Y is up, cameras look along local −Z, 
 
 Perspective and orthographic cameras use configuration structs with default constructors. A zero perspective aspect uses the framebuffer ratio. Lights include ambient, directional, point, and spot. Directional and spot configurations can enable shadow casting.
 
-`lume_scene_raycast` tests visible mesh world AABBs and returns nearest-first `LumeRaycastHit` values. The math module includes vectors, quaternions, matrices, inverse/transform operations, rays, AABBs, frusta, and intersection tests.
+`lume_scene_raycast` tests visible mesh world AABBs and returns nearest-first `LumeRaycastHit` values. For an instanced mesh, `lume_node_world_bounds` caches the union of every instance transform and invalidates that aggregate when an instance changes; raycasts therefore test the complete instance set as one node. The math module includes vectors, quaternions, matrices, inverse/transform operations, rays, AABBs, frusta, and intersection tests.
 
 ## Resources
 

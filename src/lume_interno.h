@@ -155,6 +155,8 @@ struct LumeNode
             LumeMat4 *instancias;
             uint32_t quantidade_instancias, capacidade_instancias;
             GLuint vbo_instancias;
+            LumeAabb limites_instancias;
+            bool limites_instancias_sujos;
         } malha;
         LumeDadosCameraPerspectiva perspectiva;
         LumeDadosCameraOrtografica ortografica;

@@ -1,5 +1,6 @@
 #include "lume_interno.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -20,7 +21,7 @@ int main(void)
     LumeRenderTargetConfig configuracao_alvo = lume_render_target_config_default();
     LumeApp *aplicativo = NULL;
     LumeScene *cena = NULL;
-    LumeNode *camera = NULL, *malha = NULL, *luz = NULL;
+    LumeNode *camera = NULL, *malha = NULL, *malha_instanciada = NULL, *pivo_instancias = NULL, *luz = NULL;
     LumeGeometry *caixa = NULL;
     LumeMaterial *material = NULL;
     LumeModel *gltf = NULL, *obj = NULL, *nao_suportado = NULL;
@@ -45,12 +46,42 @@ int main(void)
         lume_geometry_create_box(aplicativo, 1, 1, 1, &caixa) != LUME_SUCCESS ||
         lume_material_create(aplicativo, &material_config, &material) != LUME_SUCCESS ||
         lume_mesh_create(cena, caixa, material, &malha) != LUME_SUCCESS ||
+        lume_instanced_mesh_create(cena, caixa, material, 2, &malha_instanciada) != LUME_SUCCESS ||
+        lume_node_create(cena, &pivo_instancias) != LUME_SUCCESS ||
         lume_directional_light_create(cena, NULL, &luz) != LUME_SUCCESS ||
         lume_render_target_create(aplicativo, &configuracao_alvo, &alvo) != LUME_SUCCESS)
         goto falha;
     lume_geometry_release(caixa);
     lume_material_release(material);
     lume_node_set_position(camera, (LumeVec3){0, 0, 3});
+    if (lume_instanced_mesh_set_transform(
+            malha_instanciada, 0,
+            lume_mat4_transform((LumeVec3){-3, 0, 0}, lume_quat_identity(), (LumeVec3){1, 1, 1})) != LUME_SUCCESS ||
+        lume_instanced_mesh_set_transform(
+            malha_instanciada, 1,
+            lume_mat4_transform((LumeVec3){4, 0, 0}, lume_quat_identity(), (LumeVec3){2, 1, 1})) != LUME_SUCCESS ||
+        lume_node_add_child(pivo_instancias, malha_instanciada) != LUME_SUCCESS)
+        goto falha;
+    lume_node_set_position(pivo_instancias, (LumeVec3){2, 1, 0});
+    {
+        LumeAabb limites = lume_node_world_bounds(malha_instanciada);
+        if (fabsf(limites.min.x - (-1.5f)) > 0.0001f || fabsf(limites.max.x - 7.0f) > 0.0001f ||
+            fabsf(limites.min.y - 0.5f) > 0.0001f || fabsf(limites.max.y - 1.5f) > 0.0001f)
+        {
+            fprintf(stderr, "FAIL: Instanced bounds do not include instance and parent transforms.\n");
+            goto falha;
+        }
+        if (lume_instanced_mesh_set_transform(
+                malha_instanciada, 1,
+                lume_mat4_transform((LumeVec3){8, 0, 0}, lume_quat_identity(), (LumeVec3){1, 1, 1})) != LUME_SUCCESS)
+            goto falha;
+        limites = lume_node_world_bounds(malha_instanciada);
+        if (fabsf(limites.max.x - 10.5f) > 0.0001f)
+        {
+            fprintf(stderr, "FAIL: Instanced bounds cache was not invalidated.\n");
+            goto falha;
+        }
+    }
 
     snprintf(caminho, sizeof(caminho), "%s/triangle.gltf", LUME_TEST_FIXTURES);
     if (lume_model_load(aplicativo, caminho, NULL, &gltf) != LUME_SUCCESS || lume_model_animation_count(gltf) != 1 ||
