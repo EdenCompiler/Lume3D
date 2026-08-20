@@ -35,7 +35,9 @@ Each frame has one clear order:
 3. `lume_app_render` renders the scene with a camera.
 4. `lume_app_end_frame` presents the back buffer.
 
-Use `lume_renderer_render` when rendering to a `LumeRenderTarget`. Input queries expose down, pressed, and released state for keyboard and mouse buttons.
+Use `lume_renderer_render` when rendering to a `LumeRenderTarget`. Input queries expose down, pressed, and released state for keyboard and mouse buttons. `lume_mouse_get_position`, `lume_mouse_get_delta`, and `lume_mouse_get_scroll` return cursor coordinates, per-frame motion, and wheel motion; omitted output pointers may be `NULL`.
+
+`lume_renderer_present_target` scales an LDR render target to the application framebuffer with linear filtering. It is useful for expensive software-compatible effects that should render at a smaller internal resolution. HDR targets must be tone-mapped through a pass before presentation.
 
 ## Scene and transforms
 

@@ -954,6 +954,23 @@ LumeResult lume_app_render(LumeApp *a, LumeScene *c, LumeNode *camera)
              : lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "app.render", NULL, 0, 0,
                                  "A valid application is required.");
 }
+LumeResult lume_renderer_present_target(LumeRenderer *r, LumeRenderTarget *alvo)
+{
+    int largura, altura;
+
+    if (!r || !alvo || alvo->referencia.aplicativo != r->aplicativo)
+        return lume_definir_erro(LUME_ERROR_INVALID_ARGUMENT, "renderer.present_target", NULL, 0, 0,
+                                 "Renderer and render target must belong to the same application.");
+    if (alvo->hdr)
+        return lume_definir_erro(LUME_ERROR_UNSUPPORTED, "renderer.present_target", NULL, 0, 0,
+                                 "Presenting an HDR render target directly is not supported; use an LDR target.");
+    lume_app_get_framebuffer_size(r->aplicativo, &largura, &altura);
+    if (largura <= 0 || altura <= 0)
+        return LUME_SUCCESS;
+    glfwMakeContextCurrent(r->aplicativo->janela);
+    lume_apresentar_textura(r, alvo->cor, largura, altura);
+    return LUME_SUCCESS;
+}
 LumeFrameStats lume_renderer_frame_stats(const LumeRenderer *r)
 {
     return r ? r->estatisticas : (LumeFrameStats){0};

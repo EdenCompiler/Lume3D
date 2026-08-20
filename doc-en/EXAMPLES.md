@@ -38,9 +38,13 @@ f(r) = 1 − rₛ / r
 d²r/dλ², d²θ/dλ², d²φ/dλ² = Schwarzschild geodesic RHS
 ```
 
-At each step it tests the event horizon (`r ≤ rₛ`) and detects a sign change through the equatorial plane. A crossing inside the disk radii emits a rotating, radially heated disk color, with special-relativistic Doppler beaming. Escaping rays sample the star field; the gravity-grid world is rendered behind the ray-traced result. Arrow keys orbit the virtual camera, `W`/`S` zoom, `R` resets it, and `Esc` exits.
+At each step it tests the event horizon (`r ≤ rₛ`), the two orbiting bodies, and a sign change through the equatorial plane. A crossing inside the disk radii emits the rotating, radially heated colors used by the supplied program. Escaping rays reveal a perspective gravity grid shaped around the central mass.
 
-This reduced solver uses a fixed number of midpoint steps. It is not an adaptive renderer, a full Kerr (spinning-metric) solver, a magnetohydrodynamic disk simulation, or volumetric radiative transfer. The disk rotates visually, but frame dragging requires a Kerr extension rather than this Schwarzschild metric.
+The controls mirror the supplied program: left-drag orbits, middle-drag pans, the mouse wheel zooms, `R` resets the camera, `P` pauses or resumes disk motion, `G` toggles the grid, and `Esc` exits. Arrow keys and `W`/`S` remain convenient keyboard alternatives for orbit and zoom.
+
+This reduced solver uses a fixed number of midpoint steps. It is not an adaptive renderer, a full Kerr (spinning-metric) solver, a magnetohydrodynamic disk simulation, or volumetric radiative transfer. Disk rotation is visual; frame dragging requires a Kerr extension rather than this Schwarzschild metric.
+
+For CPU-only systems, the geodesic pass follows the supplied program and renders at `72 × 43`, then `lume_renderer_present_target` scales it to the `500 × 300` window. Camera motion temporarily uses 420 coarse steps per ray; the resting image uses 900. This keeps memory use modest and cuts fragment work by roughly 49 times compared with full-resolution tracing.
 
 This example is useful as a template for:
 

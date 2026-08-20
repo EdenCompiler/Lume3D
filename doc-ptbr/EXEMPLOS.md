@@ -38,9 +38,13 @@ f(r) = 1 − rₛ / r
 d²r/dλ², d²θ/dλ², d²φ/dλ² = lado direito da geodésica de Schwarzschild
 ```
 
-Em cada passo ele testa o horizonte de eventos (`r ≤ rₛ`) e detecta a mudança de sinal na passagem pelo plano equatorial. Uma passagem entre os raios do disco emite a cor de um disco rotativo com temperatura radial e beaming Doppler especial-relativístico. Raios que escapam amostram o campo de estrelas; o mundo com grade gravitacional é renderizado atrás do resultado traçado. As setas orbitam a câmera virtual, `W`/`S` aplicam zoom, `R` restaura a visão e `Esc` sai.
+Em cada passo ele testa o horizonte de eventos (`r ≤ rₛ`), os dois corpos em órbita e a mudança de sinal na passagem pelo plano equatorial. Uma passagem entre os raios do disco emite as cores rotativas e aquecidas radialmente usadas pelo programa fornecido. Raios que escapam revelam uma grade gravitacional em perspectiva deformada ao redor da massa central.
 
-O solver reduzido usa um número fixo de passos de ponto médio. Ele não é um renderizador adaptativo, um solver Kerr completo (métrica com spin), uma simulação magnetohidrodinâmica do disco ou transferência radiativa volumétrica. O disco gira visualmente, mas frame dragging exige uma extensão Kerr, não esta métrica de Schwarzschild.
+Os controles espelham o programa fornecido: arrastar com o botão esquerdo orbita, arrastar com o botão do meio desloca, a roda aplica zoom, `R` restaura a câmera, `P` pausa ou retoma o movimento do disco, `G` alterna a grade e `Esc` sai. As setas e `W`/`S` continuam como alternativas convenientes para órbita e zoom.
+
+O solver reduzido usa um número fixo de passos de ponto médio. Ele não é um renderizador adaptativo, um solver Kerr completo (métrica com spin), uma simulação magnetohidrodinâmica do disco ou transferência radiativa volumétrica. A rotação do disco é visual; frame dragging exige uma extensão Kerr, não esta métrica de Schwarzschild.
+
+Em sistemas apenas com CPU, o passe geodésico segue o programa fornecido e renderiza em `72 × 43`; `lume_renderer_present_target` amplia o resultado para a janela de `500 × 300`. O movimento da câmera usa temporariamente 420 passos mais largos por raio; a imagem parada usa 900. Isso mantém o uso de memória modesto e reduz o trabalho de fragmentos em cerca de 49 vezes frente ao traçado em resolução completa.
 
 O exemplo serve como modelo para:
 

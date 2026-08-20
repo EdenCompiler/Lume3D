@@ -17,6 +17,7 @@ int main(void)
         "void main(){FragColor=texture(uColor,vUv);}";
     LumeAppConfig configuracao = lume_app_config_default();
     LumeMaterialConfig material_config = lume_material_config_default(LUME_MATERIAL_PBR);
+    LumeRenderTargetConfig configuracao_alvo = lume_render_target_config_default();
     LumeApp *aplicativo = NULL;
     LumeScene *cena = NULL;
     LumeNode *camera = NULL, *malha = NULL, *luz = NULL;
@@ -27,6 +28,7 @@ int main(void)
     LumeAnimationPlayer *player = NULL;
     LumeShader *shader_passagem = NULL;
     LumePipeline *pipeline_passagem = NULL;
+    LumeRenderTarget *alvo = NULL;
     unsigned char pixel[4] = {0};
     char caminho[1024];
 
@@ -34,13 +36,17 @@ int main(void)
     configuracao.height = 128;
     configuracao.visible = false;
     configuracao.vsync = false;
+    configuracao_alvo.width = 32;
+    configuracao_alvo.height = 32;
+    configuracao_alvo.hdr = false;
     if (lume_app_create(&configuracao, &aplicativo) != LUME_SUCCESS ||
         lume_scene_create(aplicativo, &cena) != LUME_SUCCESS ||
         lume_camera_create_perspective(cena, NULL, &camera) != LUME_SUCCESS ||
         lume_geometry_create_box(aplicativo, 1, 1, 1, &caixa) != LUME_SUCCESS ||
         lume_material_create(aplicativo, &material_config, &material) != LUME_SUCCESS ||
         lume_mesh_create(cena, caixa, material, &malha) != LUME_SUCCESS ||
-        lume_directional_light_create(cena, NULL, &luz) != LUME_SUCCESS)
+        lume_directional_light_create(cena, NULL, &luz) != LUME_SUCCESS ||
+        lume_render_target_create(aplicativo, &configuracao_alvo, &alvo) != LUME_SUCCESS)
         goto falha;
     lume_geometry_release(caixa);
     lume_material_release(material);
@@ -88,7 +94,9 @@ int main(void)
         lume_shader_release(shader_passagem);
         lume_pipeline_release(pipeline_passagem);
     }
-    if (lume_app_render(aplicativo, cena, camera) != LUME_SUCCESS)
+    if (lume_renderer_render(lume_app_renderer(aplicativo), cena, camera, alvo) != LUME_SUCCESS ||
+        lume_renderer_present_target(lume_app_renderer(aplicativo), alvo) != LUME_SUCCESS ||
+        lume_app_render(aplicativo, cena, camera) != LUME_SUCCESS)
         goto falha;
     glFinish();
     glReadPixels(64, 64, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
@@ -102,6 +110,7 @@ verificar_fim:
     lume_model_instance_destroy(instancia);
     lume_model_release(gltf);
     lume_model_release(obj);
+    lume_render_target_release(alvo);
     lume_app_destroy(aplicativo);
     if (!aplicativo)
         return 1;
@@ -114,6 +123,7 @@ falha:
     lume_model_instance_destroy(instancia);
     lume_model_release(gltf);
     lume_model_release(obj);
+    lume_render_target_release(alvo);
     lume_app_destroy(aplicativo);
     return 1;
 }

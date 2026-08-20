@@ -10,7 +10,8 @@ Highlights:
 - HDR rendering, ACES, bloom, FXAA, custom HDR/LDR passes, environment lighting, and transparency;
 - three-cascade directional shadows and up to four spot shadow maps;
 - transform animation, instancing, frustum culling, raycasts, debug primitives, and frame statistics;
-- practical 3D Gerstner ocean and spinning Kerr black-hole shader examples;
+- practical 3D Gerstner ocean and CPU-friendly Schwarzschild ray-traced black-hole examples;
+- mouse position, per-frame delta, and wheel queries plus direct low-resolution LDR target presentation;
 - Linux GCC/Clang, Windows MSVC/MinGW CI and installable SDK archives.
 
 See [README.md](README.md), [CHANGELOG.md](CHANGELOG.md), [`doc-en`](doc-en/), and [`doc-ptbr`](doc-ptbr/) for the full public surface and documented boundaries.

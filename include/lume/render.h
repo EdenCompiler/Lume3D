@@ -160,6 +160,7 @@ LUME_API LumeResult lume_renderer_add_pass(LumeRenderer *renderer, const LumePas
 LUME_API void lume_renderer_clear_passes(LumeRenderer *renderer);
 LUME_API LumeResult lume_renderer_render(LumeRenderer *renderer, LumeScene *scene, LumeNode *camera,
                                          LumeRenderTarget *target);
+LUME_API LumeResult lume_renderer_present_target(LumeRenderer *renderer, LumeRenderTarget *target);
 LUME_API LumeResult lume_app_render(LumeApp *app, LumeScene *scene, LumeNode *camera);
 LUME_API LumeFrameStats lume_renderer_frame_stats(const LumeRenderer *renderer);
 

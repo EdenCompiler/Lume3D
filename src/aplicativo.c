@@ -396,3 +396,24 @@ bool lume_mouse_button_was_released(const LumeApp *a, LumeMouseButton b)
 {
     return a && lume_botao_valido(b) && !a->botoes_mouse[b] && a->botoes_mouse_anteriores[b];
 }
+void lume_mouse_get_position(const LumeApp *a, float *x, float *y)
+{
+    if (x)
+        *x = a ? a->posicao_mouse.x : 0.0f;
+    if (y)
+        *y = a ? a->posicao_mouse.y : 0.0f;
+}
+void lume_mouse_get_delta(const LumeApp *a, float *x, float *y)
+{
+    if (x)
+        *x = a ? a->delta_mouse.x : 0.0f;
+    if (y)
+        *y = a ? a->delta_mouse.y : 0.0f;
+}
+void lume_mouse_get_scroll(const LumeApp *a, float *x, float *y)
+{
+    if (x)
+        *x = a ? a->rolagem_mouse.x : 0.0f;
+    if (y)
+        *y = a ? a->rolagem_mouse.y : 0.0f;
+}

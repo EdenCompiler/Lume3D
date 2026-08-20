@@ -35,7 +35,9 @@ Cada frame tem uma ordem direta:
 3. `lume_app_render` renderiza a cena com uma câmera.
 4. `lume_app_end_frame` apresenta o back buffer.
 
-Use `lume_renderer_render` para renderizar em `LumeRenderTarget`. O input expõe estados down, pressed e released para teclado e botões do mouse.
+Use `lume_renderer_render` para renderizar em `LumeRenderTarget`. O input expõe estados down, pressed e released para teclado e botões do mouse. `lume_mouse_get_position`, `lume_mouse_get_delta` e `lume_mouse_get_scroll` retornam coordenadas do cursor, movimento por frame e movimento da roda; ponteiros de saída dispensáveis podem ser `NULL`.
+
+`lume_renderer_present_target` amplia um render target LDR para o framebuffer do aplicativo com filtragem linear. Ele é útil para efeitos caros e compatíveis com renderização por software que devem usar uma resolução interna menor. Alvos HDR precisam passar por tone mapping antes da apresentação.
 
 ## Cena e transformações
 

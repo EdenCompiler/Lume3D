@@ -111,7 +111,7 @@ int main(void)
 
 The ocean uses true 3D Gerstner displacement, finite-difference normals, Fresnel water, crest foam, sun glitter, and a procedural sky in the low-horizon camera style of the supplied video reference.
 
-The black-hole example adapts the supplied Schwarzschild C ray-tracer into a normalized GLSL geodesic integrator. It uses midpoint stepping, horizon and equatorial-disk intersection tests, a rotating Doppler-beamed disk, stars, and a gravity-grid world. Arrow keys orbit, `W`/`S` zoom, and `R` resets the virtual camera; its limits relative to a full Kerr solver are documented.
+The black-hole example ports the supplied Schwarzschild C ray tracer into a normalized GLSL geodesic integrator, reproducing its compact heated disk, rear companion, central shadow, and gravity grid. Its left-drag orbit, middle-drag pan, wheel zoom, reset, pause, grid toggle, and exit controls are preserved; its limits relative to a full Kerr solver are documented.
 
 See the [example guide](doc-en/EXAMPLES.md) for the implementation and physics boundaries.
 
@@ -191,7 +191,7 @@ Consulte [Compilando o Lume3D](doc-ptbr/COMPILACAO.md) para Linux, Windows, sani
 
 O oceano usa deslocamento Gerstner 3D, normais por diferenças finitas, água Fresnel, espuma nas cristas, brilho solar e céu procedural no estilo de câmera de horizonte baixo da referência em vídeo.
 
-O exemplo de buraco negro adapta o ray tracer C de Schwarzschild fornecido para um integrador GLSL de geodésicas normalizado. Ele usa passos de ponto médio, testes de interseção do horizonte e do disco equatorial, disco rotativo com beaming Doppler, estrelas e um mundo de grade gravitacional. As setas orbitam, `W`/`S` aplicam zoom e `R` restaura a câmera virtual; seus limites frente a um solver Kerr completo estão documentados.
+O exemplo de buraco negro porta o ray tracer C de Schwarzschild fornecido para um integrador GLSL de geodésicas normalizado, reproduzindo seu disco compacto aquecido, corpo companheiro traseiro, sombra central e grade gravitacional. Seus controles de órbita com arraste esquerdo, pan com arraste central, zoom pela roda, restauração, pausa, alternância da grade e saída foram preservados; seus limites frente a um solver Kerr completo estão documentados.
 
 Consulte o [guia dos exemplos](doc-ptbr/EXEMPLOS.md) para os detalhes e limites físicos.
 

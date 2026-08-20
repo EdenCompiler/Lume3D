@@ -8,6 +8,7 @@
 - added imported transform animation with loop modes, pause, seek, speed, and crossfades;
 - added unlit, Phong, PBR, custom shader materials, typed uniform setters, render targets, and HDR/LDR custom passes;
 - added environment lighting, transparency, HDR, ACES, bloom, FXAA, frustum culling, and frame statistics;
+- added mouse position/delta/scroll queries and direct LDR render-target presentation for low-resolution effects;
 - added three-cascade directional shadows and up to four spot shadow maps;
 - added practical 3D shader-ocean and Schwarzschild geodesic black-hole examples;
 - fixed fullscreen HDR/post-processing texture coordinates so the full source image is sampled;

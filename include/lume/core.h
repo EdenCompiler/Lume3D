@@ -177,6 +177,9 @@ LUME_API bool lume_key_was_released(const LumeApp *app, LumeKey key);
 LUME_API bool lume_mouse_button_is_down(const LumeApp *app, LumeMouseButton button);
 LUME_API bool lume_mouse_button_was_pressed(const LumeApp *app, LumeMouseButton button);
 LUME_API bool lume_mouse_button_was_released(const LumeApp *app, LumeMouseButton button);
+LUME_API void lume_mouse_get_position(const LumeApp *app, float *out_x, float *out_y);
+LUME_API void lume_mouse_get_delta(const LumeApp *app, float *out_x, float *out_y);
+LUME_API void lume_mouse_get_scroll(const LumeApp *app, float *out_x, float *out_y);
 
 #ifdef __cplusplus
 }
